@@ -1,27 +1,82 @@
-// Car catalogue — every entry now loads a real, artist-made 3D GLB model.
-//
-// Visuals come from:
-//   • Kenney "Car Kit" — 20 stylized vehicles, CC0 (public domain),
-//     bundled locally under models/kenney/.
-//   • Three.js examples Ferrari — MIT-licensed, bundled locally under
-//     models/threejs/.
-//   • Khronos sample assets ToyCar / CarConcept — CC-BY, bundled locally
-//     under models/khronos/.
-//
-// The engine acoustic profile of each entry is hand-tuned (cylinder
-// count, fundamental harmonics, idle/red RPM, turbo whistle, crackle…)
-// to suit the car's character.
+// Car catalogue — every entry now loads a real PHOTOREAL 3D GLB model
+// made by professional 3D artists. No procedural / cartoonish "game-style"
+// vehicles. All models are bundled locally under models/ with proper
+// attribution in models/CREDITS.md.
 
 export const CARS = [
-  // ─────────── Hero models (highest detail, photoreal-ish) ───────────
+  // ──────────────────────────────────────────────────────────────────
+  // Bavarian M3 — BMW M3 E30
+  // 3D model by Martin Trafas (Sketchfab user "TinoD2") · CC-BY 4.0
+  // https://sketchfab.com/3d-models/free-bmw-m3-e30-ac3c7013434e403e8faff87948caf422
+  // ──────────────────────────────────────────────────────────────────
   {
-    id: "maranello-v8",
+    id: "bmw-m3-e30",
+    name: "Bavarian M3 E30",
+    inspiredBy: "BMW M3 E30",
+    tagline: "موديل ثلاثي الأبعاد فوتوريالستيك حقيقي — عمل Martin Trafas (CC-BY)",
+    modelUrl: "models/photoreal/bmw-m3-e30.glb",
+    targetLength: 4.4,
+    color: 0xeef0f3, accent: 0xc6cdd6, rim: 0x202428,
+    photoreal: true,
+    power: "238 HP", topSpeed: "243 km/h", zero100: "6.7s",
+    engine: {
+      label: "I4 2.3L S14 NA",
+      type: "I4 NA", cylinders: 2,
+      idleRpm: 880, redRpm: 7250,
+      fundHz: 75, harmonics: [
+        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.55},
+        {mult: 3, gain: 0.30}, {mult: 4, gain: 0.40},
+        {mult: 5, gain: 0.18},
+      ],
+      crackle: 0.30, grit: 0.45, rumble: 0.45,
+      turboWhistle: 0.0, blower: 0.0,
+      hornFreqs: [349, 440],
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────
+  // Stuttgart Carrera 4S — Porsche 911 Carrera 4S
+  // 3D model by Lionsharp Studios · CC-BY-SA 4.0
+  // https://sketchfab.com/3d-models/free-porsche-911-carrera-4s-d01b254483794de3819786d93e0e1ebf
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: "porsche-carrera",
+    name: "Stuttgart Carrera 4S",
+    inspiredBy: "Porsche 911 Carrera 4S",
+    tagline: "موديل بدقّة عالية لـ Lionsharp Studios — Flat-6 BiTurbo (CC-BY-SA)",
+    modelUrl: "models/photoreal/porsche-911-carrera-4s.glb",
+    targetLength: 4.5,
+    color: 0xefefe9, accent: 0xb0b3b8, rim: 0x202428,
+    photoreal: true,
+    power: "443 HP", topSpeed: "306 km/h", zero100: "3.4s",
+    engine: {
+      label: "Flat-6 3.0L BiTurbo",
+      type: "Flat-6 Turbo", cylinders: 3,
+      idleRpm: 850, redRpm: 7500,
+      fundHz: 80, harmonics: [
+        {mult: 1, gain: 0.7}, {mult: 2, gain: 0.85},
+        {mult: 3, gain: 0.6}, {mult: 4, gain: 0.45},
+        {mult: 6, gain: 0.30}, {mult: 8, gain: 0.18},
+      ],
+      crackle: 0.25, grit: 0.25, rumble: 0.40,
+      turboWhistle: 0.65, blower: 0.0,
+      hornFreqs: [466, 587],
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────
+  // Maranello Berlinetta — Ferrari 458 (Three.js demo asset)
+  // © Three.js team · MIT
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: "ferrari-458",
     name: "Maranello Berlinetta",
-    inspiredBy: "Ferrari 458 — real GLB by Three.js (MIT)",
-    tagline: "موديل Ferrari 458 الأصلي من Three.js — V8 Flat-plane صارخ",
+    inspiredBy: "Ferrari 458",
+    tagline: "موديل Three.js examples الأصلي — V8 Flat-plane صارخ (MIT)",
     modelUrl: "models/threejs/ferrari.glb",
-    targetLength: 4.6,
+    targetLength: 4.55,
     color: 0xc41e2c, accent: 0xffd84d, rim: 0x111111,
+    photoreal: true,
     power: "562 HP", topSpeed: "325 km/h", zero100: "3.0s",
     engine: {
       label: "V8 4.5L NA Flat-plane",
@@ -38,150 +93,21 @@ export const CARS = [
     },
   },
 
-  // ─────────── Stylized but coherent low-poly cars (Kenney CC0) ───────────
+  // ──────────────────────────────────────────────────────────────────
+  // Sant'Agata Countach — Lamborghini Countach LPI 800-4 (2021)
+  // 3D model by Lexyc16 · CC-BY-NC 4.0  (NON-COMMERCIAL)
+  // https://sketchfab.com/3d-models/2021-lamborghini-countach-lpi-800-4-d76b94884432422b966d1a7f8815afb5
+  // ──────────────────────────────────────────────────────────────────
   {
-    id: "hot-hatch",
-    name: "Hot-Hatch RS",
-    inspiredBy: "Hatchback Sports — Kenney Car Kit (CC0)",
-    tagline: "Compact turbo hot hatch — GTI-style pops & whistle",
-    modelUrl: "models/kenney/hatchback-sports.glb",
-    targetLength: 4.0,
-    color: 0xe8e8ec, accent: 0xd0182b, rim: 0x18191c,
-    power: "245 HP", topSpeed: "250 km/h", zero100: "6.3s",
-    engine: {
-      label: "I4 2.0L Turbo (EA888-style)",
-      type: "I4 Turbo", cylinders: 2,
-      idleRpm: 820, redRpm: 6800,
-      fundHz: 68, harmonics: [
-        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.25}, {mult: 4, gain: 0.18}, {mult: 5, gain: 0.10},
-      ],
-      crackle: 0.85, grit: 0.45, rumble: 0.30,
-      turboWhistle: 0.95, blower: 0.0,
-      hornFreqs: [380, 480],
-    },
-  },
-  {
-    id: "m-sport",
-    name: "Bavarian M-Sport",
-    inspiredBy: "Sedan Sports — Kenney Car Kit (CC0)",
-    tagline: "Twin-turbo I6 super-sedan — sharp, surgical S58-style",
-    modelUrl: "models/kenney/sedan-sports.glb",
-    targetLength: 4.7,
-    color: 0x1a3fa8, accent: 0xffffff, rim: 0x111111,
-    power: "510 HP", topSpeed: "290 km/h", zero100: "3.5s",
-    engine: {
-      label: "I6 3.0L S58-style BiTurbo",
-      type: "I6 Turbo", cylinders: 3,
-      idleRpm: 800, redRpm: 7200,
-      fundHz: 75, harmonics: [
-        {mult: 1, gain: 0.9}, {mult: 2, gain: 0.65},
-        {mult: 3, gain: 0.55}, {mult: 4, gain: 0.35}, {mult: 6, gain: 0.20},
-      ],
-      crackle: 0.40, grit: 0.30, rumble: 0.45,
-      turboWhistle: 0.75, blower: 0.0,
-      hornFreqs: [349, 440],
-    },
-  },
-  {
-    id: "exec-sedan",
-    name: "Executive Saloon",
-    inspiredBy: "Sedan — Kenney Car Kit (CC0)",
-    tagline: "V6 bi-turbo executive cruiser",
-    modelUrl: "models/kenney/sedan.glb",
-    targetLength: 4.7,
-    color: 0x1d2330, accent: 0xc6cdd6, rim: 0x202428,
-    power: "400 HP", topSpeed: "280 km/h", zero100: "4.3s",
-    engine: {
-      label: "V6 3.0L BiTurbo",
-      type: "V6 Turbo", cylinders: 3,
-      idleRpm: 800, redRpm: 7000,
-      fundHz: 75, harmonics: [
-        {mult: 1, gain: 0.8}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.45}, {mult: 4, gain: 0.30}, {mult: 5, gain: 0.20},
-      ],
-      crackle: 0.30, grit: 0.30, rumble: 0.45,
-      turboWhistle: 0.65, blower: 0.0,
-      hornFreqs: [370, 466],
-    },
-  },
-  {
-    id: "luxe-suv",
-    name: "Performance SUV",
-    inspiredBy: "SUV Luxury — Kenney Car Kit (CC0)",
-    tagline: "Twin-turbo V8 luxury performance SUV",
-    modelUrl: "models/kenney/suv-luxury.glb",
-    targetLength: 4.9,
-    color: 0x18181c, accent: 0xc6cdd6, rim: 0x303030,
-    power: "612 HP", topSpeed: "305 km/h", zero100: "3.7s",
-    engine: {
-      label: "V8 4.0L BiTurbo",
-      type: "V8 BiTurbo", cylinders: 4,
-      idleRpm: 720, redRpm: 6800,
-      fundHz: 60, harmonics: [
-        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.30}, {mult: 4, gain: 0.40},
-        {mult: 5, gain: 0.18}, {mult: 6, gain: 0.22},
-      ],
-      crackle: 0.55, grit: 0.55, rumble: 0.85,
-      turboWhistle: 0.7, blower: 0.0,
-      hornFreqs: [311, 392],
-    },
-  },
-  {
-    id: "off-road-suv",
-    name: "Trail SUV",
-    inspiredBy: "SUV — Kenney Car Kit (CC0)",
-    tagline: "Naturally-aspirated V6 off-roader",
-    modelUrl: "models/kenney/suv.glb",
-    targetLength: 4.7,
-    color: 0x4a5d23, accent: 0x1a1a1a, rim: 0x1a1a1a,
-    power: "295 HP", topSpeed: "210 km/h", zero100: "6.5s",
-    engine: {
-      label: "V6 3.5L NA",
-      type: "V6", cylinders: 3,
-      idleRpm: 750, redRpm: 6500,
-      fundHz: 70, harmonics: [
-        {mult: 1, gain: 0.85}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.45}, {mult: 4, gain: 0.30},
-      ],
-      crackle: 0.20, grit: 0.30, rumble: 0.55,
-      turboWhistle: 0.0, blower: 0.0,
-      hornFreqs: [349, 440],
-    },
-  },
-  {
-    id: "track-spec",
-    name: "Track Spec V8",
-    inspiredBy: "Race — Kenney Car Kit (CC0)",
-    tagline: "Naked race car — flat-plane V8 howl",
-    modelUrl: "models/kenney/race.glb",
-    targetLength: 4.6,
-    color: 0xd92020, accent: 0xfff200, rim: 0xfff200,
-    power: "720 HP", topSpeed: "340 km/h", zero100: "2.8s",
-    engine: {
-      label: "V8 5.2L Flat-plane",
-      type: "V8 FP", cylinders: 4,
-      idleRpm: 1100, redRpm: 9000,
-      fundHz: 90, harmonics: [
-        {mult: 1, gain: 0.65}, {mult: 2, gain: 0.95},
-        {mult: 3, gain: 0.65}, {mult: 4, gain: 0.50},
-        {mult: 5, gain: 0.35}, {mult: 7, gain: 0.20},
-      ],
-      crackle: 0.40, grit: 0.30, rumble: 0.40,
-      turboWhistle: 0.0, blower: 0.0,
-      hornFreqs: [466, 587],
-    },
-  },
-  {
-    id: "concept-racer",
-    name: "Concept Hyper",
-    inspiredBy: "Race Future — Kenney Car Kit (CC0)",
-    tagline: "Naturally-aspirated V12 concept hypercar",
-    modelUrl: "models/kenney/race-future.glb",
-    targetLength: 4.8,
-    color: 0x2080d8, accent: 0xeef2f7, rim: 0x101010,
-    power: "780 HP", topSpeed: "350 km/h", zero100: "2.9s",
+    id: "lambo-countach",
+    name: "Sant'Agata Countach LPI",
+    inspiredBy: "Lamborghini Countach LPI 800-4",
+    tagline: "موديل Lexyc16 — V12 NA scream (CC-BY-NC، استخدام شخصي/تعليمي)",
+    modelUrl: "models/photoreal/lambo-countach.glb",
+    targetLength: 4.85,
+    color: 0xfb9b00, accent: 0x111111, rim: 0x111111,
+    photoreal: true,
+    power: "780 HP", topSpeed: "355 km/h", zero100: "2.8s",
     engine: {
       label: "V12 6.5L NA",
       type: "V12", cylinders: 6,
@@ -197,171 +123,20 @@ export const CARS = [
       hornFreqs: [415, 523],
     },
   },
-  {
-    id: "interceptor",
-    name: "Pursuit Interceptor",
-    inspiredBy: "Police — Kenney Car Kit (CC0)",
-    tagline: "Cross-plane V8 muscle, deep & loud",
-    modelUrl: "models/kenney/police.glb",
-    targetLength: 4.85,
-    color: 0x0e1422, accent: 0xeef2f7, rim: 0x202428,
-    power: "470 HP", topSpeed: "260 km/h", zero100: "5.1s",
-    engine: {
-      label: "V8 5.0L cross-plane",
-      type: "V8", cylinders: 4,
-      idleRpm: 700, redRpm: 6800,
-      fundHz: 55, harmonics: [
-        {mult: 1, gain: 1.00}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.30}, {mult: 4, gain: 0.40},
-        {mult: 5, gain: 0.18}, {mult: 6, gain: 0.22},
-      ],
-      crackle: 0.45, grit: 0.55, rumble: 0.85,
-      turboWhistle: 0.0, blower: 0.0,
-      hornFreqs: [330, 415],
-    },
-  },
-  {
-    id: "city-cab",
-    name: "City Cab",
-    inspiredBy: "Taxi — Kenney Car Kit (CC0)",
-    tagline: "I4 city cruiser — modest but characterful",
-    modelUrl: "models/kenney/taxi.glb",
-    targetLength: 4.7,
-    color: 0xf2c14e, accent: 0x111111, rim: 0x101010,
-    power: "180 HP", topSpeed: "190 km/h", zero100: "8.2s",
-    engine: {
-      label: "I4 2.5L NA",
-      type: "I4", cylinders: 2,
-      idleRpm: 750, redRpm: 6000,
-      fundHz: 65, harmonics: [
-        {mult: 1, gain: 0.85}, {mult: 2, gain: 0.45},
-        {mult: 3, gain: 0.20}, {mult: 4, gain: 0.15},
-      ],
-      crackle: 0.10, grit: 0.30, rumble: 0.30,
-      turboWhistle: 0.0, blower: 0.0,
-      hornFreqs: [392, 494],
-    },
-  },
-  {
-    id: "cargo-express",
-    name: "Cargo Express",
-    inspiredBy: "Van — Kenney Car Kit (CC0)",
-    tagline: "Turbo V6 delivery van",
-    modelUrl: "models/kenney/van.glb",
-    targetLength: 5.0,
-    color: 0xeef2f7, accent: 0x18191c, rim: 0x202428,
-    power: "240 HP", topSpeed: "180 km/h", zero100: "9.3s",
-    engine: {
-      label: "V6 3.0L Turbo",
-      type: "V6 Turbo", cylinders: 3,
-      idleRpm: 800, redRpm: 5800,
-      fundHz: 65, harmonics: [
-        {mult: 1, gain: 0.85}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.40}, {mult: 4, gain: 0.30},
-      ],
-      crackle: 0.20, grit: 0.40, rumble: 0.55,
-      turboWhistle: 0.55, blower: 0.0,
-      hornFreqs: [349, 440],
-    },
-  },
-  {
-    id: "delivery-rig",
-    name: "Delivery Rig",
-    inspiredBy: "Delivery — Kenney Car Kit (CC0)",
-    tagline: "Diesel-style I5 cargo runner",
-    modelUrl: "models/kenney/delivery.glb",
-    targetLength: 5.5,
-    color: 0xf26430, accent: 0x18191c, rim: 0x202428,
-    power: "210 HP", topSpeed: "150 km/h", zero100: "12s",
-    engine: {
-      label: "I5 2.5L Turbodiesel",
-      type: "I5 TDI", cylinders: 2.5,
-      idleRpm: 700, redRpm: 5000,
-      fundHz: 50, harmonics: [
-        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.40},
-        {mult: 3, gain: 0.35}, {mult: 5, gain: 0.18},
-      ],
-      crackle: 0.20, grit: 0.75, rumble: 0.85,
-      turboWhistle: 0.7, blower: 0.0,
-      hornFreqs: [311, 392],
-    },
-  },
-  {
-    id: "heavy-hauler",
-    name: "Heavy Hauler",
-    inspiredBy: "Truck — Kenney Car Kit (CC0)",
-    tagline: "V8 turbodiesel pickup",
-    modelUrl: "models/kenney/truck.glb",
-    targetLength: 5.6,
-    color: 0x2c3e50, accent: 0x18191c, rim: 0x202428,
-    power: "475 HP", topSpeed: "180 km/h", zero100: "5.9s",
-    engine: {
-      label: "V8 6.7L Turbodiesel",
-      type: "V8 TDI", cylinders: 4,
-      idleRpm: 700, redRpm: 4500,
-      fundHz: 45, harmonics: [
-        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.50},
-        {mult: 3, gain: 0.30}, {mult: 4, gain: 0.45},
-      ],
-      crackle: 0.20, grit: 0.85, rumble: 0.95,
-      turboWhistle: 0.85, blower: 0.0,
-      hornFreqs: [262, 330],
-    },
-  },
-  {
-    id: "rescue-pumper",
-    name: "Rescue Pumper",
-    inspiredBy: "Firetruck — Kenney Car Kit (CC0)",
-    tagline: "Heavy V10 turbodiesel rescue truck",
-    modelUrl: "models/kenney/firetruck.glb",
-    targetLength: 7.5,
-    color: 0xb40c1c, accent: 0xfff200, rim: 0x202428,
-    power: "525 HP", topSpeed: "120 km/h", zero100: "12s",
-    engine: {
-      label: "V10 12.0L Turbodiesel",
-      type: "V10 TDI", cylinders: 5,
-      idleRpm: 650, redRpm: 3800,
-      fundHz: 42, harmonics: [
-        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.65},
-        {mult: 3, gain: 0.45}, {mult: 5, gain: 0.30},
-      ],
-      crackle: 0.10, grit: 0.85, rumble: 1.0,
-      turboWhistle: 0.65, blower: 0.0,
-      hornFreqs: [220, 277],
-    },
-  },
-  {
-    id: "ambulance-1",
-    name: "Emergency 1",
-    inspiredBy: "Ambulance — Kenney Car Kit (CC0)",
-    tagline: "V8 turbodiesel emergency response",
-    modelUrl: "models/kenney/ambulance.glb",
-    targetLength: 5.8,
-    color: 0xeef2f7, accent: 0xd0182b, rim: 0x202428,
-    power: "300 HP", topSpeed: "165 km/h", zero100: "9.0s",
-    engine: {
-      label: "V8 4.5L Turbodiesel",
-      type: "V8 TDI", cylinders: 4,
-      idleRpm: 700, redRpm: 4500,
-      fundHz: 50, harmonics: [
-        {mult: 1, gain: 1.0}, {mult: 2, gain: 0.55},
-        {mult: 3, gain: 0.30}, {mult: 4, gain: 0.40},
-      ],
-      crackle: 0.15, grit: 0.75, rumble: 0.85,
-      turboWhistle: 0.7, blower: 0.0,
-      hornFreqs: [262, 330],
-    },
-  },
 
-  // ─────────── Khronos hero (high-detail concept) ───────────
+  // ──────────────────────────────────────────────────────────────────
+  // Concept W16 — Khronos CarConcept demo asset · CC-BY 4.0
+  // https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/CarConcept/README.md
+  // ──────────────────────────────────────────────────────────────────
   {
     id: "concept-w16",
     name: "Concept W16 Quad-Turbo",
-    inspiredBy: "CarConcept — Khronos sample asset (CC-BY)",
-    tagline: "Photoreal concept hyper-car — Khronos CarConcept",
+    inspiredBy: "Bugatti-style hypercar — Khronos CarConcept",
+    tagline: "موديل Khronos الرسمي — W16 quad-turbo فوتوريالستيك (CC-BY)",
     modelUrl: "models/khronos/CarConcept.glb",
-    targetLength: 4.8,
+    targetLength: 4.7,
     color: 0x0f1830, accent: 0x4a90e2, rim: 0x4a90e2,
+    photoreal: true,
     power: "1500 HP", topSpeed: "440 km/h", zero100: "2.4s",
     engine: {
       label: "W16 8.0L Quad-Turbo",
@@ -375,6 +150,34 @@ export const CARS = [
       crackle: 0.25, grit: 0.20, rumble: 0.55,
       turboWhistle: 0.95, blower: 0.0,
       hornFreqs: [440, 554],
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────────
+  // Khronos ToyCar — high-detail toy-car GLB · CC-BY 4.0
+  // https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/ToyCar/README.md
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: "toy-car",
+    name: "Pixar Toy Car",
+    inspiredBy: "Pixar 'Toy Car' demo asset",
+    tagline: "موديل Khronos الرسمي مع تفاصيل MaterialsX (CC-BY)",
+    modelUrl: "models/khronos/ToyCar.glb",
+    targetLength: 4.0,
+    color: 0xd92020, accent: 0xfff200, rim: 0x202428,
+    photoreal: true,
+    power: "—", topSpeed: "—", zero100: "—",
+    engine: {
+      label: "Imaginary I4 Petrol",
+      type: "I4", cylinders: 2,
+      idleRpm: 800, redRpm: 6500,
+      fundHz: 65, harmonics: [
+        {mult: 1, gain: 0.85}, {mult: 2, gain: 0.45},
+        {mult: 3, gain: 0.20}, {mult: 4, gain: 0.15},
+      ],
+      crackle: 0.10, grit: 0.30, rumble: 0.30,
+      turboWhistle: 0.0, blower: 0.0,
+      hornFreqs: [392, 494],
     },
   },
 ];
