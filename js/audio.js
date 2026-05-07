@@ -1,21 +1,28 @@
-// Procedural engine sound synthesizer using the Web Audio API.
+// Procedural engine sound synthesizer with per-engine character.
 //
-// We mix several signal sources to create an authentic-sounding engine that
-// reacts to throttle, RPM, and turbo:
+// Previous version: every car was a stack of sawtooth oscillators with
+// the same noise + filter chain — they all sounded buzzy and similar.
 //
-//   1) Cylinder-pulse oscillator bank — the firing pulses generate a buzzy
-//      saw-rich tone whose pitch tracks RPM and whose harmonics shape the
-//      engine character (V8 burble, V12 scream, EV whine, ...).
-//   2) Sub-bass sine at the firing frequency for low-end rumble.
-//   3) Filtered noise for combustion grit, mixed by throttle.
-//   4) Turbo whistle: a high-Q bandpass on noise, pitch rising with boost.
-//   5) Supercharger whine: a pure tone gear-mesh at boost*RPM*ratio.
-//   6) Crackle/pops on overrun (closed throttle at high RPM): random noise
-//      bursts.
-//   7) Brake squeal: high oscillator with vibrato when braking.
+// This version uses a CUSTOM PeriodicWave per engine type, plus engine-
+// specific formant filters (peak-EQ at characteristic exhaust resonances)
+// and a per-engine noise/grit filter. The result is that each engine has
+// its own recognisable "voice":
 //
-// All sources route into a master gain that ducks the volume when the engine
-// is off.
+//   • V8 cross-plane (Mustang, M3 V8, AMG) — deep American burble with
+//     strong odd harmonics and a 200 Hz formant.
+//   • V8 flat-plane (Ferrari, race) — bright "shrieking" tone with even
+//     harmonics dominating; formants in 700/2.4k Hz range.
+//   • V12 NA (Lambo Countach) — dense harmonic stack, screaming top end
+//     with formants at 600/1.6k/3.2k Hz.
+//   • Flat-6 turbo (Porsche 911) — metallic, with strong 3rd & 9th
+//     harmonics; formants at 850/1900 Hz; turbo whistle layer.
+//   • I4 NA (BMW E30 S14) — small-bore high-rev rasp with 2nd-harmonic
+//     emphasis and bright formant at 1.2 kHz.
+//   • W16 (Bugatti) — low complex bass with broad mid-range hum.
+//   • EV — pure inverter whine, no combustion.
+//
+// We also halved the master volume and added a soft-clipping curve so
+// the synth no longer feels harsh.
 
 export class EngineAudio {
   constructor() {
@@ -25,15 +32,15 @@ export class EngineAudio {
 
     this.rpm = 0;
     this.targetRpm = 0;
-    this.throttle = 0;        // 0..1
-    this.brake = 0;           // 0..1
-    this.boost = 0;           // 0..1 (turbo lag-modeled)
+    this.throttle = 0;
+    this.brake = 0;
+    this.boost = 0;
     this.targetBoost = 0;
     this.lastUpdate = 0;
     this._running = false;
-
-    // graph nodes (rebuilt per car)
     this._nodes = null;
+
+    this._waveCache = {};
   }
 
   async init() {
@@ -45,15 +52,32 @@ export class EngineAudio {
     }
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.0;
-    const limiter = this.ctx.createDynamicsCompressor();
-    limiter.threshold.value = -8;
-    limiter.knee.value = 8;
-    limiter.ratio.value = 6;
-    limiter.attack.value = 0.003;
-    limiter.release.value = 0.12;
-    this.master.connect(limiter).connect(this.ctx.destination);
 
-    // ---- shared noise buffers ----
+    // Soft-clip waveshaper to keep peaks pleasant.
+    const shaper = this.ctx.createWaveShaper();
+    const curve = new Float32Array(2048);
+    for (let i = 0; i < 2048; i++) {
+      const x = (i / 2048) * 2 - 1;
+      curve[i] = Math.tanh(x * 1.3);
+    }
+    shaper.curve = curve;
+    shaper.oversample = "2x";
+
+    const limiter = this.ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 8;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.18;
+
+    // Subtle high-shelf cut to tame harsh treble.
+    const tilt = this.ctx.createBiquadFilter();
+    tilt.type = "highshelf";
+    tilt.frequency.value = 4500;
+    tilt.gain.value = -3.0;
+
+    this.master.connect(tilt).connect(shaper).connect(limiter).connect(this.ctx.destination);
+
     this._whiteNoise = this._makeNoiseBuffer(2.0, "white");
     this._pinkNoise  = this._makeNoiseBuffer(2.0, "pink");
   }
@@ -82,11 +106,117 @@ export class EngineAudio {
     return buf;
   }
 
+  // Build a custom PeriodicWave for a specific engine character. The arrays
+  // describe the harmonic content (cosine and sine coefficients).
+  _getEngineWave(profile) {
+    const key = profile.character || profile.type || "default";
+    if (this._waveCache[key]) return this._waveCache[key];
+
+    const N = 32;
+    const real = new Float32Array(N);
+    const imag = new Float32Array(N);
+
+    // Default — soft sawtooth-like spectrum
+    for (let n = 1; n < N; n++) {
+      imag[n] = 1 / n;
+    }
+
+    const ch = profile.character;
+    if (ch === "v8-cross") {
+      // American V8 burble: strong fundamental, 2nd, and 4th, with
+      // characteristic 5th-harmonic dip and 8th lift.
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 1.00; imag[2] = 0.55; imag[3] = 0.20; imag[4] = 0.55;
+      imag[5] = 0.10; imag[6] = 0.30; imag[8] = 0.45; imag[10] = 0.18; imag[12] = 0.12;
+    } else if (ch === "v8-flat") {
+      // Ferrari flat-plane: bright, even harmonics dominate.
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.60; imag[2] = 1.00; imag[3] = 0.55; imag[4] = 0.85;
+      imag[5] = 0.40; imag[6] = 0.55; imag[7] = 0.30; imag[8] = 0.40;
+      imag[10] = 0.25; imag[14] = 0.18; imag[16] = 0.15;
+    } else if (ch === "v12-na") {
+      // V12 NA: dense harmonic stack, screams at high RPM.
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.55; imag[2] = 0.85; imag[3] = 0.65; imag[4] = 0.55;
+      imag[5] = 0.40; imag[6] = 0.85; imag[7] = 0.30; imag[8] = 0.40;
+      imag[9] = 0.20; imag[10] = 0.30; imag[12] = 0.40; imag[14] = 0.20;
+      imag[18] = 0.15; imag[24] = 0.10;
+    } else if (ch === "flat6-turbo") {
+      // Porsche flat-6 with turbo: metallic, bright 3rd & 9th.
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.55; imag[2] = 0.50; imag[3] = 1.00; imag[4] = 0.30;
+      imag[5] = 0.25; imag[6] = 0.55; imag[7] = 0.20; imag[9] = 0.45;
+      imag[12] = 0.25; imag[15] = 0.15;
+    } else if (ch === "flat6-na") {
+      // 911 GT3 NA: pure metallic howl.
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.45; imag[3] = 1.00; imag[5] = 0.55; imag[7] = 0.45;
+      imag[9] = 0.55; imag[11] = 0.30; imag[13] = 0.25;
+      imag[15] = 0.20; imag[18] = 0.15;
+    } else if (ch === "i6-turbo") {
+      // BMW S58 / smooth I6 with turbo: dense low harmonics
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 1.00; imag[2] = 0.55; imag[3] = 0.85; imag[4] = 0.40;
+      imag[5] = 0.20; imag[6] = 0.55; imag[8] = 0.30; imag[12] = 0.18;
+    } else if (ch === "i4-na") {
+      // BMW E30 S14: high-revving 4-banger raucous
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.95; imag[2] = 0.85; imag[3] = 0.40; imag[4] = 0.55;
+      imag[5] = 0.20; imag[6] = 0.30; imag[8] = 0.20;
+    } else if (ch === "i4-turbo") {
+      // EA888 / B58: gritty mid with strong 2nd
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 1.00; imag[2] = 0.65; imag[3] = 0.30; imag[4] = 0.20;
+      imag[5] = 0.12; imag[6] = 0.20;
+    } else if (ch === "w16") {
+      // Bugatti W16: complex deep spectrum
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.95; imag[2] = 0.75; imag[3] = 0.55; imag[4] = 0.50;
+      imag[5] = 0.30; imag[6] = 0.40; imag[7] = 0.20; imag[8] = 0.30;
+      imag[10] = 0.20; imag[12] = 0.15; imag[16] = 0.10;
+    } else if (ch === "ev") {
+      // Inverter whine — only high harmonics
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[2] = 0.45; imag[4] = 0.85; imag[6] = 0.45; imag[8] = 0.25;
+      imag[12] = 0.18;
+    } else if (ch === "diesel-v8") {
+      // Diesel: dominant fundamental, low harmonics, gritty
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 1.00; imag[2] = 0.35; imag[3] = 0.30; imag[5] = 0.18;
+    } else if (ch === "toy") {
+      // Toy car: soft sine-like
+      for (let n = 0; n < N; n++) imag[n] = 0;
+      imag[1] = 0.85; imag[2] = 0.30; imag[3] = 0.10;
+    }
+
+    const wave = this.ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    this._waveCache[key] = wave;
+    return wave;
+  }
+
+  // Engine-specific formant peaks. Each formant is a peaking filter at a
+  // resonant frequency that gives the engine its characteristic "vowel".
+  _getFormants(profile) {
+    const ch = profile.character;
+    switch (ch) {
+      case "v8-cross":   return [{f: 200, q: 1.4, g: 7}, {f: 600, q: 1.0, g: 4}, {f: 1700, q: 0.8, g: -3}];
+      case "v8-flat":    return [{f: 700, q: 1.2, g: 6}, {f: 2300, q: 1.0, g: 5}];
+      case "v12-na":     return [{f: 600, q: 1.0, g: 5}, {f: 1700, q: 1.2, g: 6}, {f: 3300, q: 0.9, g: 4}];
+      case "flat6-turbo":return [{f: 850, q: 1.4, g: 6}, {f: 1900, q: 1.5, g: 5}, {f: 3500, q: 0.8, g: 2}];
+      case "flat6-na":   return [{f: 950, q: 1.5, g: 7}, {f: 2400, q: 1.6, g: 6}, {f: 4200, q: 0.8, g: 3}];
+      case "i6-turbo":   return [{f: 320, q: 1.2, g: 4}, {f: 1100, q: 1.0, g: 5}, {f: 2400, q: 0.8, g: 2}];
+      case "i4-na":      return [{f: 480, q: 1.3, g: 4}, {f: 1300, q: 1.2, g: 6}, {f: 2700, q: 0.9, g: 3}];
+      case "i4-turbo":   return [{f: 350, q: 1.3, g: 4}, {f: 1100, q: 1.4, g: 5}];
+      case "w16":        return [{f: 150, q: 1.5, g: 8}, {f: 450, q: 1.0, g: 5}, {f: 1500, q: 0.9, g: 3}];
+      case "ev":         return [{f: 1200, q: 4, g: 8}, {f: 4000, q: 2, g: 4}];
+      case "diesel-v8":  return [{f: 110, q: 2, g: 9}, {f: 380, q: 1.2, g: 5}, {f: 1100, q: 1.0, g: 2}];
+      case "toy":        return [{f: 800, q: 1.5, g: 5}];
+      default:           return [{f: 220, q: 1.2, g: 5}, {f: 900, q: 1.0, g: 3}];
+    }
+  }
+
   setProfile(profile) {
     if (!this.ctx) return;
-    // Preserve the running state across profile changes — otherwise switching
-    // cars (which calls setProfile -> stop -> _buildGraph) leaves the engine
-    // halted and the new car is silent.
     const wasRunning = this._running;
     this.stop();
     this.profile = profile;
@@ -97,11 +227,7 @@ export class EngineAudio {
     if (wasRunning) this.start();
   }
 
-  // ─── Real recording playback ─────────────────────────────────────────
-  // If a sample is attached to the current profile (via drag-drop or
-  // spec.sampleUrl), we layer it on top of the procedural synth as a
-  // looped buffer whose playbackRate scales with RPM. This lets users
-  // supply genuine engine recordings and hear them respond to throttle.
+  // ─── Real recording playback ───────────────────────────────────────
   async setSampleUrl(url) {
     if (!this.ctx || !url) return;
     try {
@@ -110,17 +236,13 @@ export class EngineAudio {
       const decoded = await this.ctx.decodeAudioData(buf);
       this._sampleBuffer = decoded;
       this._installSamplePlayer();
-    } catch (e) {
-      console.warn("Could not load sample:", e);
-    }
+    } catch (e) { console.warn("Could not load sample:", e); }
   }
-
   setSampleBuffer(audioBuffer) {
     if (!this.ctx || !audioBuffer) return;
     this._sampleBuffer = audioBuffer;
     this._installSamplePlayer();
   }
-
   clearSample() {
     if (this._sampleSrc) {
       try { this._sampleSrc.stop(); } catch(e) {}
@@ -133,7 +255,6 @@ export class EngineAudio {
     }
     this._sampleBuffer = null;
   }
-
   _installSamplePlayer() {
     if (!this.ctx || !this._sampleBuffer) return;
     if (this._sampleSrc) {
@@ -149,130 +270,131 @@ export class EngineAudio {
     src.start();
     this._sampleSrc = src;
     this._sampleGain = g;
-    // Reduce procedural engine volume when a real sample is active
     if (this._nodes && this._nodes.engineBus) {
-      this._nodes.engineBus.gain.setTargetAtTime(0.20, this.ctx.currentTime, 0.2);
+      this._nodes.engineBus.gain.setTargetAtTime(0.18, this.ctx.currentTime, 0.2);
     }
   }
 
   _buildGraph() {
     const ctx = this.ctx;
     const p = this.profile;
-    const nodes = {
-      sources: [],
-      stop: () => {
-        for (const s of nodes.sources) {
-          try { s.stop(); } catch(e) {}
-          try { s.disconnect(); } catch(e) {}
-        }
-      },
-    };
+    const nodes = { sources: [], stop: () => {
+      for (const s of nodes.sources) {
+        try { s.stop(); } catch(e) {}
+        try { s.disconnect(); } catch(e) {}
+      }
+    }};
 
-    // -------- engine bus (mixed engine sounds) --------
     const engineBus = ctx.createGain();
-    engineBus.gain.value = p.electric ? 0.55 : 0.85;
+    engineBus.gain.value = 0.42;
     nodes.engineBus = engineBus;
 
-    // EQ shaping
-    const lp = ctx.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = 5800; lp.Q.value = 0.4;
-    const hp = ctx.createBiquadFilter();
-    hp.type = "highpass"; hp.frequency.value = 30;
-    engineBus.connect(hp).connect(lp).connect(this.master);
-
-    // === 1) Harmonic firing-pulse synth (sawtooth bank) ===
-    nodes.harmGains = [];
-    nodes.harmOscs  = [];
-    for (const h of p.harmonics) {
-      const osc = ctx.createOscillator();
-      osc.type = p.electric ? "triangle" : "sawtooth";
-      osc.frequency.value = p.fundHz * h.mult;
-      const g = ctx.createGain();
-      g.gain.value = 0.0001;
-      // small detune to thicken
-      osc.detune.value = (Math.random()-0.5)*8;
-      osc.connect(g).connect(engineBus);
-      osc.start();
-      nodes.harmGains.push({g, base: h.gain});
-      nodes.harmOscs.push(osc);
-      nodes.sources.push(osc);
+    // Build the formant chain: each is a peaking BiquadFilter in series.
+    const formants = this._getFormants(p);
+    let cur = engineBus;
+    for (const f of formants) {
+      const bq = ctx.createBiquadFilter();
+      bq.type = "peaking";
+      bq.frequency.value = f.f;
+      bq.Q.value = f.q;
+      bq.gain.value = f.g;
+      cur.connect(bq);
+      cur = bq;
     }
+    // Final tone shaping
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 6500; lp.Q.value = 0.5;
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 35;
+    cur.connect(hp).connect(lp).connect(this.master);
+    nodes.engineHP = hp; nodes.engineLP = lp;
 
-    // === 2) Sub-bass (rumble) ===
-    const subOsc = ctx.createOscillator();
-    subOsc.type = "sine";
-    subOsc.frequency.value = p.fundHz * 0.5;
+    // ── Custom-wave fundamental oscillator ──
+    const wave = this._getEngineWave(p);
+    const osc = ctx.createOscillator();
+    osc.setPeriodicWave(wave);
+    osc.frequency.value = p.fundHz;
+    osc.detune.value = (Math.random()-0.5) * 6;
+    const oscGain = ctx.createGain();
+    oscGain.gain.value = 0.0001;
+    osc.connect(oscGain).connect(engineBus);
+    osc.start();
+    nodes.osc = osc; nodes.oscGain = oscGain;
+    nodes.sources.push(osc);
+
+    // Slight 2nd voice for thickness, detuned
+    const osc2 = ctx.createOscillator();
+    osc2.setPeriodicWave(wave);
+    osc2.frequency.value = p.fundHz;
+    osc2.detune.value = 9 + (Math.random()-0.5)*4;
+    const osc2Gain = ctx.createGain();
+    osc2Gain.gain.value = 0.0001;
+    osc2.connect(osc2Gain).connect(engineBus);
+    osc2.start();
+    nodes.osc2 = osc2; nodes.osc2Gain = osc2Gain;
+    nodes.sources.push(osc2);
+
+    // ── Sub-bass for rumble (sine at half fundamental) ──
+    const sub = ctx.createOscillator();
+    sub.type = "sine";
+    sub.frequency.value = Math.max(20, p.fundHz * 0.5);
     const subGain = ctx.createGain();
     subGain.gain.value = 0.0001;
-    subOsc.connect(subGain).connect(engineBus);
-    subOsc.start();
-    nodes.subOsc = subOsc; nodes.subGain = subGain;
-    nodes.sources.push(subOsc);
+    sub.connect(subGain).connect(engineBus);
+    sub.start();
+    nodes.sub = sub; nodes.subGain = subGain;
+    nodes.sources.push(sub);
 
-    // === 3) Combustion grit (filtered noise) ===
-    const noiseSrc = ctx.createBufferSource();
-    noiseSrc.buffer = this._pinkNoise; noiseSrc.loop = true;
-    const noiseBP = ctx.createBiquadFilter();
-    noiseBP.type = "bandpass"; noiseBP.frequency.value = 600; noiseBP.Q.value = 0.7;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.0001;
-    noiseSrc.connect(noiseBP).connect(noiseGain).connect(engineBus);
-    noiseSrc.start();
-    nodes.noiseGain = noiseGain; nodes.noiseBP = noiseBP;
-    nodes.sources.push(noiseSrc);
+    // ── Combustion grit (filtered noise) ──
+    const grit = ctx.createBufferSource();
+    grit.buffer = this._pinkNoise; grit.loop = true;
+    const gritBP = ctx.createBiquadFilter();
+    gritBP.type = "bandpass"; gritBP.frequency.value = 700; gritBP.Q.value = 0.8;
+    const gritGain = ctx.createGain();
+    gritGain.gain.value = 0.0001;
+    grit.connect(gritBP).connect(gritGain).connect(engineBus);
+    grit.start();
+    nodes.gritBP = gritBP; nodes.gritGain = gritGain;
+    nodes.sources.push(grit);
 
-    // === 4) Turbo whistle (BP noise with high Q) ===
-    const turboSrc = ctx.createBufferSource();
-    turboSrc.buffer = this._whiteNoise; turboSrc.loop = true;
-    const turboBP = ctx.createBiquadFilter();
-    turboBP.type = "bandpass"; turboBP.frequency.value = 3000; turboBP.Q.value = 22;
-    const turboGain = ctx.createGain();
-    turboGain.gain.value = 0.0001;
-    turboSrc.connect(turboBP).connect(turboGain).connect(this.master);
-    turboSrc.start();
-    nodes.turboGain = turboGain; nodes.turboBP = turboBP;
-    nodes.sources.push(turboSrc);
+    // ── Turbo whistle (BP noise high Q) ──
+    const tnoise = ctx.createBufferSource();
+    tnoise.buffer = this._whiteNoise; tnoise.loop = true;
+    const tBP = ctx.createBiquadFilter();
+    tBP.type = "bandpass"; tBP.frequency.value = 3500; tBP.Q.value = 24;
+    const tGain = ctx.createGain();
+    tGain.gain.value = 0.0001;
+    tnoise.connect(tBP).connect(tGain).connect(this.master);
+    tnoise.start();
+    nodes.turboBP = tBP; nodes.turboGain = tGain;
+    nodes.sources.push(tnoise);
 
-    // === 5) Supercharger whine (gear-mesh tone) ===
-    const blowerOsc = ctx.createOscillator();
-    blowerOsc.type = "square";
-    blowerOsc.frequency.value = 1200;
-    const blowerGain = ctx.createGain();
-    blowerGain.gain.value = 0.0001;
-    const blowerHP = ctx.createBiquadFilter();
-    blowerHP.type = "highpass"; blowerHP.frequency.value = 800;
-    blowerOsc.connect(blowerHP).connect(blowerGain).connect(this.master);
-    blowerOsc.start();
-    nodes.blowerOsc = blowerOsc; nodes.blowerGain = blowerGain;
-    nodes.sources.push(blowerOsc);
+    // ── Crackle/pops on overrun ──
+    const cnoise = ctx.createBufferSource();
+    cnoise.buffer = this._whiteNoise; cnoise.loop = true;
+    const cBP = ctx.createBiquadFilter();
+    cBP.type = "bandpass"; cBP.frequency.value = 2000; cBP.Q.value = 1.0;
+    const cGain = ctx.createGain();
+    cGain.gain.value = 0.0001;
+    cnoise.connect(cBP).connect(cGain).connect(this.master);
+    cnoise.start();
+    nodes.crackGain = cGain;
+    nodes.sources.push(cnoise);
 
-    // === 6) Crackle (pops on overrun) — periodic env on noise ===
-    const crackSrc = ctx.createBufferSource();
-    crackSrc.buffer = this._whiteNoise; crackSrc.loop = true;
-    const crackBP = ctx.createBiquadFilter();
-    crackBP.type = "bandpass"; crackBP.frequency.value = 1800; crackBP.Q.value = 1.2;
-    const crackGain = ctx.createGain();
-    crackGain.gain.value = 0.0001;
-    crackSrc.connect(crackBP).connect(crackGain).connect(this.master);
-    crackSrc.start();
-    nodes.crackGain = crackGain;
-    nodes.sources.push(crackSrc);
-
-    // === 7) Brake squeal ===
-    const brakeOsc = ctx.createOscillator();
-    brakeOsc.type = "square"; brakeOsc.frequency.value = 1900;
-    const brakeLfo = ctx.createOscillator();
-    brakeLfo.type = "sine"; brakeLfo.frequency.value = 7;
-    const brakeLfoGain = ctx.createGain(); brakeLfoGain.gain.value = 60;
-    brakeLfo.connect(brakeLfoGain).connect(brakeOsc.frequency);
-    const brakeGain = ctx.createGain();
-    brakeGain.gain.value = 0.0001;
-    const brakeHP = ctx.createBiquadFilter();
-    brakeHP.type = "highpass"; brakeHP.frequency.value = 1500;
-    brakeOsc.connect(brakeHP).connect(brakeGain).connect(this.master);
-    brakeOsc.start(); brakeLfo.start();
-    nodes.brakeOsc = brakeOsc; nodes.brakeGain = brakeGain;
-    nodes.sources.push(brakeOsc, brakeLfo);
+    // ── Brake squeal ──
+    const bo = ctx.createOscillator();
+    bo.type = "square"; bo.frequency.value = 1900;
+    const blfo = ctx.createOscillator();
+    blfo.type = "sine"; blfo.frequency.value = 7;
+    const blfoGain = ctx.createGain(); blfoGain.gain.value = 60;
+    blfo.connect(blfoGain).connect(bo.frequency);
+    const bg = ctx.createGain(); bg.gain.value = 0.0001;
+    const bhp = ctx.createBiquadFilter();
+    bhp.type = "highpass"; bhp.frequency.value = 1500;
+    bo.connect(bhp).connect(bg).connect(this.master);
+    bo.start(); blfo.start();
+    nodes.brakeOsc = bo; nodes.brakeGain = bg;
+    nodes.sources.push(bo, blfo);
 
     this._nodes = nodes;
   }
@@ -283,7 +405,7 @@ export class EngineAudio {
     if (this.master) {
       const t = this.ctx.currentTime;
       this.master.gain.cancelScheduledValues(t);
-      this.master.gain.linearRampToValueAtTime(0.55, t + 0.4);
+      this.master.gain.linearRampToValueAtTime(0.30, t + 0.3);
     }
     this.lastUpdate = performance.now();
     this._loop();
@@ -295,23 +417,17 @@ export class EngineAudio {
     if (this.master) {
       const t = this.ctx.currentTime;
       this.master.gain.cancelScheduledValues(t);
-      this.master.gain.linearRampToValueAtTime(0.0, t + 0.25);
+      this.master.gain.linearRampToValueAtTime(0.0, t + 0.20);
     }
-    if (this._nodes) {
-      // Don't stop sources — we want smooth transitions when switching cars.
-      this._nodes.stop();
-      this._nodes = null;
-    }
+    if (this._nodes) { this._nodes.stop(); this._nodes = null; }
   }
 
   setControls({throttle, brake, turbo}) {
     this.throttle = Math.max(0, Math.min(1, throttle));
     this.brake = Math.max(0, Math.min(1, brake));
-    // turbo asks for max boost capability; actual boost ramps with throttle+rpm
     this._turboBtn = turbo ? 1 : 0;
   }
 
-  // public getters used by HUD
   getRpm() { return this.rpm; }
   getBoost() { return this.boost; }
 
@@ -322,106 +438,89 @@ export class EngineAudio {
     this.lastUpdate = now;
     const p = this.profile;
     const ctx = this.ctx;
-    const nodes = this._nodes;
+    const n = this._nodes;
 
-    // ---- target RPM from throttle ----
+    // ── RPM tracking ──
     const idle = p.idleRpm, red = p.redRpm;
     const span = red - idle;
     let target = idle + this.throttle * span;
     if (this.brake > 0.05) target = Math.max(idle, target * (1 - 0.5 * this.brake));
     this.targetRpm = target;
-
-    // engine inertia: spin up slower than down for combustion engines, both
-    // very fast for EV motors
-    const upRate = p.electric ? 9000 : (1800 + 1200 * (1 - this.brake));
-    const downRate = p.electric ? 12000 : 2400;
+    const upRate = p.electric ? 9000 : (1700 + 1200 * (1 - this.brake));
+    const downRate = p.electric ? 12000 : 2200;
     const diff = this.targetRpm - this.rpm;
     const rate = diff > 0 ? upRate : downRate;
-    const step = Math.sign(diff) * Math.min(Math.abs(diff), rate * dt);
-    this.rpm += step;
+    this.rpm += Math.sign(diff) * Math.min(Math.abs(diff), rate * dt);
     if (!p.electric && this.rpm < idle * 0.9) this.rpm = idle * 0.9;
 
-    // ---- boost target & lag ----
+    // ── Boost ──
     const wantBoost = (this._turboBtn && this.throttle > 0.4) ? 1.0
                      : (this.throttle > 0.6 ? this.throttle : 0);
     this.targetBoost = wantBoost;
-    const boostDiff = this.targetBoost - this.boost;
-    this.boost += Math.sign(boostDiff) * Math.min(Math.abs(boostDiff), (boostDiff>0?0.9:2.0) * dt);
+    const bDiff = this.targetBoost - this.boost;
+    this.boost += Math.sign(bDiff) * Math.min(Math.abs(bDiff), (bDiff>0?0.9:2.0) * dt);
 
-    // ---- pulse frequency from RPM ----
-    const fundFreq = p.fundHz * (this.rpm / Math.max(1, idle));
+    // ── Frequencies ──
+    const fund = p.fundHz * (this.rpm / Math.max(1, idle));
     const t = ctx.currentTime;
 
-    // 1) harmonic oscs
-    const throttleBoost = 1.0 + 0.55 * this.throttle + 0.20 * this.boost;
-    for (let i = 0; i < nodes.harmOscs.length; i++) {
-      const osc = nodes.harmOscs[i];
-      const item = nodes.harmGains[i];
-      osc.frequency.setTargetAtTime(fundFreq * p.harmonics[i].mult, t, 0.03);
-      const tilt = 1 + (this.rpm / red - 0.5) * 0.6; // brighter at higher RPM
-      const baseLevel = item.base * 0.25 * throttleBoost * tilt;
-      item.g.gain.setTargetAtTime(Math.max(0.0001, baseLevel), t, 0.05);
-    }
+    // Fundamental + thickening voice
+    const tilt = 1 + (this.rpm / red - 0.5) * 0.45; // brighter higher RPM
+    const oscLevel = 0.42 * (0.45 + 0.55 * this.throttle) * tilt;
+    const sampleAttenuation = (this._sampleBuffer ? 0.25 : 1.0);
+    n.osc.frequency.setTargetAtTime(fund, t, 0.03);
+    n.osc2.frequency.setTargetAtTime(fund, t, 0.03);
+    n.oscGain.gain.setTargetAtTime(Math.max(0.0001, oscLevel * 0.7 * sampleAttenuation), t, 0.05);
+    n.osc2Gain.gain.setTargetAtTime(Math.max(0.0001, oscLevel * 0.45 * sampleAttenuation), t, 0.05);
 
-    // 2) sub
-    if (nodes.subOsc) {
-      nodes.subOsc.frequency.setTargetAtTime(Math.max(20, fundFreq * 0.5), t, 0.05);
-      const subLevel = (p.rumble || 0) * 0.55 * (0.5 + 0.5 * this.throttle);
-      nodes.subGain.gain.setTargetAtTime(Math.max(0.0001, subLevel), t, 0.08);
-    }
+    // Sub
+    n.sub.frequency.setTargetAtTime(Math.max(20, fund * 0.5), t, 0.05);
+    const subLevel = (p.rumble || 0) * 0.35 * (0.5 + 0.5 * this.throttle) * sampleAttenuation;
+    n.subGain.gain.setTargetAtTime(Math.max(0.0001, subLevel), t, 0.08);
 
-    // 3) grit noise
+    // Grit
     {
-      const lvl = (p.grit || 0) * (0.15 + 0.55 * this.throttle) * (0.6 + 0.4*this.rpm/red);
-      nodes.noiseBP.frequency.setTargetAtTime(400 + 1600 * (this.rpm/red), t, 0.05);
-      nodes.noiseGain.gain.setTargetAtTime(Math.max(0.0001, lvl), t, 0.05);
+      const lvl = (p.grit || 0) * 0.32 * (0.20 + 0.60 * this.throttle) * (0.6 + 0.4*this.rpm/red) * sampleAttenuation;
+      n.gritBP.frequency.setTargetAtTime(450 + 1700 * (this.rpm/red), t, 0.05);
+      n.gritGain.gain.setTargetAtTime(Math.max(0.0001, lvl), t, 0.05);
     }
 
-    // 4) turbo whistle — pitch up with boost & RPM
+    // Turbo whistle
     {
-      const whistleLvl = (p.turboWhistle || 0) * Math.max(0, this.boost - 0.05) * (0.4 + 0.6*this.throttle);
-      nodes.turboBP.frequency.setTargetAtTime(2200 + 5500 * this.boost * (0.5 + 0.5*this.rpm/red), t, 0.04);
-      nodes.turboGain.gain.setTargetAtTime(Math.max(0.0001, whistleLvl * 0.55), t, 0.05);
+      const lvl = (p.turboWhistle || 0) * Math.max(0, this.boost - 0.05) * (0.4 + 0.6*this.throttle) * 0.55;
+      n.turboBP.frequency.setTargetAtTime(2400 + 5000 * this.boost * (0.5 + 0.5*this.rpm/red), t, 0.04);
+      n.turboGain.gain.setTargetAtTime(Math.max(0.0001, lvl), t, 0.05);
     }
 
-    // 5) supercharger whine — proportional to RPM
-    {
-      const blowerFreq = 800 + 5200 * (this.rpm / red);
-      nodes.blowerOsc.frequency.setTargetAtTime(blowerFreq, t, 0.03);
-      const lvl = (p.blower || 0) * (0.15 + 0.6 * this.throttle);
-      nodes.blowerGain.gain.setTargetAtTime(Math.max(0.0001, lvl * 0.18), t, 0.05);
-    }
-
-    // 6) crackles on overrun (high RPM + closed throttle, mostly combustion)
+    // Crackles on overrun
     {
       const overrun = (this.rpm > idle * 2.2) && (this.throttle < 0.1) ? 1 : 0;
       if (overrun && Math.random() < 0.18 && p.crackle > 0) {
-        const popLvl = 0.25 * p.crackle;
-        nodes.crackGain.gain.cancelScheduledValues(t);
-        nodes.crackGain.gain.setValueAtTime(popLvl, t);
-        nodes.crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+        const popLvl = 0.20 * p.crackle;
+        n.crackGain.gain.cancelScheduledValues(t);
+        n.crackGain.gain.setValueAtTime(popLvl, t);
+        n.crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
       }
     }
 
-    // 7) brake squeal (only audible while braking and rolling)
+    // Brake squeal
     {
       const squeal = this.brake > 0.4 && this.rpm > idle * 1.05 ? this.brake : 0;
-      nodes.brakeOsc.frequency.setTargetAtTime(1500 + 600 * this.brake, t, 0.05);
-      nodes.brakeGain.gain.setTargetAtTime(Math.max(0.0001, squeal * 0.05), t, 0.05);
+      n.brakeOsc.frequency.setTargetAtTime(1500 + 600 * this.brake, t, 0.05);
+      n.brakeGain.gain.setTargetAtTime(Math.max(0.0001, squeal * 0.045), t, 0.05);
     }
 
-    // 8) Real recording playback rate + gain — loaded sample tracks RPM.
+    // Real recording playback rate
     if (this._sampleSrc && this._sampleGain) {
-      const rate = 0.7 + 0.9 * (this.rpm / red);  // 0.7x..1.6x playback
+      const rate = 0.7 + 0.9 * (this.rpm / red);
       try { this._sampleSrc.playbackRate.setTargetAtTime(rate, t, 0.05); } catch(e) {}
-      const targetVol = 0.45 + 0.45 * this.throttle;
+      const targetVol = 0.40 + 0.45 * this.throttle;
       this._sampleGain.gain.setTargetAtTime(targetVol, t, 0.08);
     }
 
     requestAnimationFrame(() => this._loop());
   }
 
-  // ---- horn ----
   honk() {
     if (!this.ctx || !this.profile) return;
     const t = this.ctx.currentTime;
@@ -434,7 +533,7 @@ export class EngineAudio {
       o1.connect(g); o2.connect(g); g.connect(lp).connect(this.master);
       o1.start(); o2.start();
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.30, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.22, t + 0.03);
       g.gain.setTargetAtTime(0.0001, t + 0.45, 0.04);
       o1.stop(t + 0.7); o2.stop(t + 0.7);
     };

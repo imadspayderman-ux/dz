@@ -24,10 +24,35 @@ required attribution.
 - **Original:** <https://sketchfab.com/3d-models/2021-lamborghini-countach-lpi-800-4-d76b94884432422b966d1a7f8815afb5>
 - **Licence:** [CC Attribution-NonCommercial 4.0 (CC-BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/) ⚠ non-commercial only
 
-> The CC-BY-NC licence on this Lamborghini permits **personal,
-> educational and demo use** but not commercial use. If you fork this
-> repository for a commercial product, remove `lambo-countach.glb`
-> and the corresponding entry from `js/cars.js`.
+### `mustang-shelby-gt500.glb` — Ford Mustang Shelby GT500
+- **Title:** "Ford Mustang Shelby GT500"
+- **Author:** Jiaxing (Sketchfab user [`saitoyang`](https://sketchfab.com/saitoyang))
+- **Original:** <https://sketchfab.com/3d-models/ford-mustang-shelby-gt500-0eaa7a16796540f29461ddae05ecdeb3>
+- **Licence:** [CC Attribution 4.0 International (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+
+### `mustang-1969.glb` — Ford Mustang 1969 (John Bowe edition)
+- **Title:** "Ford Mustang John Bowe 1969 | www.vecarz.com"
+- **Author:** vecarz / Sketchfab user [`heynic`](https://sketchfab.com/heynic)
+- **Original:** <https://sketchfab.com/3d-models/ford-mustang-john-bowe-1969-wwwvecarzcom-91a5454aaf02492a9c7e959b8eb6db9f>
+- **Licence:** [CC Attribution 4.0 International (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+
+### `mustang-2017-gt.glb` — 2017 Ford Mustang GT
+- **Title:** "2017 Ford Mustang GT"
+- **Author:** Sketchfab user [`IsaacOldton`](https://sketchfab.com/IsaacOldton)
+- **Original:** <https://sketchfab.com/3d-models/2017-ford-mustang-gt-7dfe5e8c4198432385f596a780c043a3>
+- **Licence:** [CC Attribution 4.0 International (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+
+### `cyberpunk-car.glb` — Cyberpunk concept hover-car
+- **Title:** "Cyberpunk car"
+- **Author:** 4d_Bob (Sketchfab user [`3d_Bob`](https://sketchfab.com/3d_Bob))
+- **Original:** <https://sketchfab.com/3d-models/cyberpunk-car-b4301ff99d214d16a7a43708a5866bf0>
+- **Licence:** [CC Attribution-NonCommercial 4.0 (CC-BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/) ⚠ non-commercial only
+
+> The CC-BY-NC licences on the Lamborghini Countach and the Cyberpunk
+> Car permit **personal, educational and demo use** but not commercial
+> use. If you fork this repository for a commercial product, remove
+> `lambo-countach.glb` and `cyberpunk-car.glb` plus their entries from
+> `js/cars.js`.
 
 ## models/khronos/
 
