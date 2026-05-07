@@ -5,6 +5,43 @@
 V10، I4 توربو، W16، EV…) مع توربو، ومكابح، وبوق سيارة، وأضواء، وكاميرات
 متعددة الزوايا.
 
+## السيارات المعروضة
+
+كل سيارة مصمَّمة بأبعاد، شبك، عجلات، وأضواء **مستوحاة بوضوح** من سيارة
+حقيقية معروفة، وملف صوت محرّكها مضبوط هارمونياً ليطابق توقيع المحرّك
+الحقيقي:
+
+| الاسم في الموقع | مستوحاة من | المحرك |
+|---|---|---|
+| RS-Avant 4.0 TFSI | Audi RS6 Avant | V8 4.0L Bi-Turbo |
+| R-Eight V10 | Audi R8 | V10 5.2L NA |
+| Hot-Hatch GTI | VW Golf GTI Mk8 | I4 2.0L EA888 |
+| Vintage Bug 1600 | VW Beetle (classic) | Flat-4 Aircooled |
+| Bavarian M-Sport | BMW M3 G80 (S58) | I6 3.0L BiTurbo |
+| Stuttgart Flat-Six | Porsche 911 GT3 | Flat-6 4.0L NA |
+| Maranello Berlinetta | Ferrari 488 | V8 3.9L Flat-plane TT |
+| Sant'Agata Bull V10 | Lamborghini Huracan | V10 5.2L NA |
+| Stuttgart AMG-GT | Mercedes-AMG GT | V8 4.0L M178 BiTurbo |
+| Yokohama GT-Beast | Nissan GT-R R35 | V6 3.8L VR38 BiTurbo |
+| California Plaid | Tesla Model S Plaid | Tri-Motor EV |
+| Molsheim W16 | Bugatti Chiron | W16 8.0L Quad-Turbo |
+
+> الأسماء عامّة تكريماً للملكية الفكرية لأصحابها. الموقع لا يستخدم
+> شعارات أو موديلات مرخّصة لأي صانع سيارات.
+
+## الأصوات الحقيقية
+
+أصوات المحركات في الموقع مُولَّدة لحظياً بواسطة Web Audio API بنغمة
+هارمونية مضبوطة لتطابق توقيع كل محرك حقيقي (V8 BiTurbo، EA888، S58،
+Flat-6، W16…). لكن إذا أردت سماع **التسجيل الأصلي** لمحرّك بعينه (مثلاً
+تسجيلك الخاص لمحرك RS6 من اليوتيوب أو من سيارتك):
+
+1. شغّل الموقع.
+2. اختر السيارة المطلوبة من القائمة.
+3. **اسحب ملف MP3/WAV/OGG وأفلِته على الصفحة** — سيُشغَّل مباشرة كصوت
+   هذه السيارة، وستستجيب وتيرة التشغيل لدعستك على الـ W (يرتفع الصوت
+   مع الـ RPM ويهدأ مع رفع الدعسة).
+
 ## المميزات
 
 - **12 سيارة واقعية** مختلفة الأشكال والألوان والعجلات والأجنحة (عضلية،

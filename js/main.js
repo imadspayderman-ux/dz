@@ -62,13 +62,17 @@ function selectCar(i) {
   const c = CARS[i];
   currentCarEl.textContent = c.name;
   infoName.textContent = c.name;
-  infoTagline.textContent = c.tagline;
+  infoTagline.textContent = c.tagline + (c.inspiredBy ? ` — مستوحاة من ${c.inspiredBy}` : "");
   infoEngine.textContent = c.engine.label;
   infoPower.textContent = c.power;
   infoTop.textContent = c.topSpeed;
   infoZero.textContent = c.zero100;
   statusEngine.textContent = c.engine.type;
-  if (audio.ctx) audio.setProfile(c.engine);
+  if (audio.ctx) {
+    audio.clearSample();
+    audio.setProfile(c.engine);
+    if (c.sampleUrl) audio.setSampleUrl(c.sampleUrl);
+  }
 }
 selectCar(0);
 
@@ -99,6 +103,60 @@ startBtn.addEventListener("click", async () => {
   await audio.init();
   audio.setProfile(CARS[showroom.activeIndex].engine);
   audio.start();
+});
+
+// ---------- Drag & drop a real engine recording onto the page ---------
+// Drop any MP3/WAV/OGG file to use it as the active car's engine sound.
+// The procedural synth is automatically dimmed and the recording's
+// playback rate tracks RPM live, so it responds to the throttle.
+const dropHint = document.createElement("div");
+dropHint.id = "dropHint";
+dropHint.innerHTML = `
+  <div class="drop-card">
+    <div class="drop-icon">⬇</div>
+    <div class="drop-title">اسحب ملف صوت المحرك هنا</div>
+    <div class="drop-sub">سيُشغَّل مباشرة كصوت السيارة الحالية وستستجيب الـ RPM لدعستك</div>
+  </div>`;
+dropHint.style.cssText = "position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(5,7,13,0.85);backdrop-filter:blur(6px);pointer-events:none";
+document.body.appendChild(dropHint);
+const dropStyle = document.createElement("style");
+dropStyle.textContent = `
+  #dropHint .drop-card{background:rgba(10,15,28,0.95);border:2px dashed var(--acc);border-radius:18px;padding:36px 40px;text-align:center;box-shadow:0 0 80px rgba(39,224,255,0.3) inset}
+  #dropHint .drop-icon{font-size:60px;color:var(--acc);margin-bottom:8px;animation:bob 1.2s ease-in-out infinite}
+  #dropHint .drop-title{font-size:22px;font-weight:800;letter-spacing:1px}
+  #dropHint .drop-sub{color:var(--mut);font-size:13px;margin-top:8px}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+`;
+document.head.appendChild(dropStyle);
+
+["dragenter","dragover"].forEach(ev => {
+  window.addEventListener(ev, (e) => {
+    if (e.dataTransfer && [...e.dataTransfer.items].some(i => i.kind === "file")) {
+      e.preventDefault();
+      dropHint.style.display = "flex";
+    }
+  });
+});
+["dragleave","drop"].forEach(ev => {
+  window.addEventListener(ev, (e) => {
+    if (ev === "dragleave" && e.relatedTarget) return;
+    dropHint.style.display = "none";
+  });
+});
+window.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer?.files?.[0];
+  if (!file || !file.type.startsWith("audio/")) return;
+  if (!audio.ctx) await audio.init();
+  try {
+    const buf = await file.arrayBuffer();
+    const decoded = await audio.ctx.decodeAudioData(buf);
+    audio.setSampleBuffer(decoded);
+    statusEngine.textContent = "REAL: " + file.name.slice(0, 18);
+  } catch (err) {
+    console.warn("decode failed", err);
+    alert("تعذّر فكّ ترميز الملف الصوتي");
+  }
 });
 
 // ---------- Keyboard controls ----------

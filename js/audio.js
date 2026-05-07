@@ -92,6 +92,64 @@ export class EngineAudio {
     this.boost = 0; this.targetBoost = 0;
   }
 
+  // ─── Real recording playback ─────────────────────────────────────────
+  // If a sample is attached to the current profile (via drag-drop or
+  // spec.sampleUrl), we layer it on top of the procedural synth as a
+  // looped buffer whose playbackRate scales with RPM. This lets users
+  // supply genuine engine recordings and hear them respond to throttle.
+  async setSampleUrl(url) {
+    if (!this.ctx || !url) return;
+    try {
+      const r = await fetch(url, { mode: "cors" });
+      const buf = await r.arrayBuffer();
+      const decoded = await this.ctx.decodeAudioData(buf);
+      this._sampleBuffer = decoded;
+      this._installSamplePlayer();
+    } catch (e) {
+      console.warn("Could not load sample:", e);
+    }
+  }
+
+  setSampleBuffer(audioBuffer) {
+    if (!this.ctx || !audioBuffer) return;
+    this._sampleBuffer = audioBuffer;
+    this._installSamplePlayer();
+  }
+
+  clearSample() {
+    if (this._sampleSrc) {
+      try { this._sampleSrc.stop(); } catch(e) {}
+      try { this._sampleSrc.disconnect(); } catch(e) {}
+      this._sampleSrc = null;
+    }
+    if (this._sampleGain) {
+      try { this._sampleGain.disconnect(); } catch(e) {}
+      this._sampleGain = null;
+    }
+    this._sampleBuffer = null;
+  }
+
+  _installSamplePlayer() {
+    if (!this.ctx || !this._sampleBuffer) return;
+    if (this._sampleSrc) {
+      try { this._sampleSrc.stop(); } catch(e) {}
+      try { this._sampleSrc.disconnect(); } catch(e) {}
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._sampleBuffer;
+    src.loop = true;
+    const g = this.ctx.createGain();
+    g.gain.value = 0.0001;
+    src.connect(g).connect(this.master);
+    src.start();
+    this._sampleSrc = src;
+    this._sampleGain = g;
+    // Reduce procedural engine volume when a real sample is active
+    if (this._nodes && this._nodes.engineBus) {
+      this._nodes.engineBus.gain.setTargetAtTime(0.20, this.ctx.currentTime, 0.2);
+    }
+  }
+
   _buildGraph() {
     const ctx = this.ctx;
     const p = this.profile;
@@ -108,6 +166,7 @@ export class EngineAudio {
     // -------- engine bus (mixed engine sounds) --------
     const engineBus = ctx.createGain();
     engineBus.gain.value = p.electric ? 0.55 : 0.85;
+    nodes.engineBus = engineBus;
 
     // EQ shaping
     const lp = ctx.createBiquadFilter();
@@ -344,6 +403,14 @@ export class EngineAudio {
       const squeal = this.brake > 0.4 && this.rpm > idle * 1.05 ? this.brake : 0;
       nodes.brakeOsc.frequency.setTargetAtTime(1500 + 600 * this.brake, t, 0.05);
       nodes.brakeGain.gain.setTargetAtTime(Math.max(0.0001, squeal * 0.05), t, 0.05);
+    }
+
+    // 8) Real recording playback rate + gain — loaded sample tracks RPM.
+    if (this._sampleSrc && this._sampleGain) {
+      const rate = 0.7 + 0.9 * (this.rpm / red);  // 0.7x..1.6x playback
+      try { this._sampleSrc.playbackRate.setTargetAtTime(rate, t, 0.05); } catch(e) {}
+      const targetVol = 0.45 + 0.45 * this.throttle;
+      this._sampleGain.gain.setTargetAtTime(targetVol, t, 0.08);
     }
 
     requestAnimationFrame(() => this._loop());
