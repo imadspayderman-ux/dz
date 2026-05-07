@@ -84,12 +84,17 @@ export class EngineAudio {
 
   setProfile(profile) {
     if (!this.ctx) return;
+    // Preserve the running state across profile changes — otherwise switching
+    // cars (which calls setProfile -> stop -> _buildGraph) leaves the engine
+    // halted and the new car is silent.
+    const wasRunning = this._running;
     this.stop();
     this.profile = profile;
     this._buildGraph();
     this.targetRpm = profile.idleRpm;
     this.rpm = profile.idleRpm;
     this.boost = 0; this.targetBoost = 0;
+    if (wasRunning) this.start();
   }
 
   // ─── Real recording playback ─────────────────────────────────────────

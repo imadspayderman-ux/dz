@@ -199,7 +199,7 @@ export class Showroom {
     const car = this.cars[this.activeIndex];
     if (!car) return;
     car.userData.headlights.forEach(h => {
-      h.material.emissiveIntensity = on ? 3.0 : 1.1;
+      h.material.emissiveIntensity = on ? 2.5 : 0.55;
     });
   }
 
@@ -207,7 +207,7 @@ export class Showroom {
     const car = this.cars[this.activeIndex];
     if (!car) return;
     car.userData.taillights.forEach(t => {
-      t.material.emissiveIntensity = 0.6 + 1.8 * brake;
+      t.material.emissiveIntensity = 0.35 + 1.6 * brake;
     });
   }
 

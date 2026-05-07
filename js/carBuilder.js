@@ -48,7 +48,7 @@ function glassMat() {
   }
   return _matCache._glass;
 }
-function emissiveMat(color, intensity = 1.1) {
+function emissiveMat(color, intensity = 0.55) {
   return new THREE.MeshStandardMaterial({
     color: 0xfff5d0, emissive: color, emissiveIntensity: intensity,
     metalness: 0.4, roughness: 0.2,
@@ -150,19 +150,61 @@ function buildGreenhouseShape(p) {
   return s;
 }
 
-function extrudeBody(shape, depth, bevel = 0.04) {
+function extrudeBody(shape, depth, bevel = 0.10, segments = 5) {
   const geo = new THREE.ExtrudeGeometry(shape, {
     depth,
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
-    bevelSegments: 2,
-    curveSegments: 14,
+    bevelSegments: segments,
+    curveSegments: 22,
     steps: 1,
   });
   geo.translate(0, 0, -depth / 2);
+  return geo; // normals are computed after width-tapering
+}
+
+// Apply a smooth, organic width taper along the X (length) axis: the body
+// is widest in the middle and narrower toward the front and rear bumpers,
+// just like a real car. Without this, an extruded silhouette looks like a
+// rectangular loaf with flat sides.
+function applyWidthTaper(geo, endTaper = 0.82, exp = 0.5) {
+  geo.computeBoundingBox();
+  const xMin = geo.boundingBox.min.x;
+  const xMax = geo.boundingBox.max.x;
+  const xRange = xMax - xMin || 1;
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const t = (x - xMin) / xRange;        // 0..1
+    const bell = Math.pow(Math.sin(t * Math.PI), exp); // smooth fat bell
+    const factor = endTaper + (1 - endTaper) * bell;
+    pos.setZ(i, z * factor);
+  }
+  pos.needsUpdate = true;
   geo.computeVertexNormals();
-  return geo;
+}
+
+// Apply a soft height bow along the X axis: lift the middle of the roof
+// slightly so the silhouette curves more organically. We scale Y around
+// the body floor.
+function applyRoofCrown(geo, floorY, lift = 0.02) {
+  const pos = geo.attributes.position;
+  geo.computeBoundingBox();
+  const xMin = geo.boundingBox.min.x;
+  const xMax = geo.boundingBox.max.x;
+  const xRange = xMax - xMin || 1;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    if (y < floorY + 0.05) continue;       // leave the lower body alone
+    const t = (x - xMin) / xRange;
+    const bow = Math.sin(t * Math.PI);     // 0..1..0 along X
+    pos.setY(i, y + bow * lift);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
 }
 
 // ─── Wheel styles per brand ──────────────────────────────────────────────
@@ -511,11 +553,10 @@ function buildHeadlights(style, p) {
   const y = p.beltY - 0.08;
   switch (style) {
     case "round": {
-      // Classic round headlights (Beetle, 911)
       for (const sgn of [-1, 1]) {
         const m = new THREE.Mesh(
-          new THREE.SphereGeometry(0.13, 16, 12, 0, Math.PI),
-          emissiveMat(0xfff3c8, 1.4)
+          new THREE.SphereGeometry(0.13, 18, 14, 0, Math.PI),
+          emissiveMat(0xfff3c8, 0.60)
         );
         m.rotation.y = -Math.PI / 2;
         m.position.set(fX + 0.03, y, sgn * (p.W / 2 - 0.40));
@@ -527,14 +568,13 @@ function buildHeadlights(style, p) {
       for (const sgn of [-1, 1]) {
         const m = new THREE.Mesh(
           new THREE.BoxGeometry(0.05, 0.08, 0.55),
-          emissiveMat(0xfff5d0, 1.3)
+          emissiveMat(0xfff5d0, 0.55)
         );
         m.position.set(fX, y - 0.02, sgn * (p.W / 2 - 0.40));
         lights.push(m);
-        // signature DRL strip (slim line below)
         const drl = new THREE.Mesh(
           new THREE.BoxGeometry(0.03, 0.02, 0.5),
-          emissiveMat(0xb8e0ff, 1.6)
+          emissiveMat(0xb8e0ff, 0.85)
         );
         drl.position.set(fX + 0.01, y - 0.10, sgn * (p.W / 2 - 0.40));
         lights.push(drl);
@@ -543,16 +583,15 @@ function buildHeadlights(style, p) {
     }
     case "bmw-laser": {
       for (const sgn of [-1, 1]) {
-        // L-shaped LED (twin halo accent)
         const main = new THREE.Mesh(
           new THREE.BoxGeometry(0.05, 0.10, 0.55),
-          emissiveMat(0xffffff, 1.4)
+          emissiveMat(0xffffff, 0.60)
         );
         main.position.set(fX, y, sgn * (p.W / 2 - 0.40));
         lights.push(main);
         const halo = new THREE.Mesh(
           new THREE.BoxGeometry(0.04, 0.04, 0.50),
-          emissiveMat(0x9ec8ff, 1.8)
+          emissiveMat(0x9ec8ff, 0.95)
         );
         halo.position.set(fX + 0.005, y + 0.06, sgn * (p.W / 2 - 0.40));
         lights.push(halo);
@@ -563,7 +602,7 @@ function buildHeadlights(style, p) {
       for (const sgn of [-1, 1]) {
         const m = new THREE.Mesh(
           new THREE.BoxGeometry(0.05, 0.10, 0.45),
-          emissiveMat(0xfff5d0, 1.2)
+          emissiveMat(0xfff5d0, 0.55)
         );
         m.position.set(fX, y - 0.02, sgn * (p.W / 2 - 0.40));
         lights.push(m);
@@ -574,8 +613,8 @@ function buildHeadlights(style, p) {
       for (const sgn of [-1, 1]) {
         for (let i = 0; i < 2; i++) {
           const m = new THREE.Mesh(
-            new THREE.CircleGeometry(0.07, 14),
-            emissiveMat(0xfff5d0, 1.3)
+            new THREE.CircleGeometry(0.07, 16),
+            emissiveMat(0xfff5d0, 0.60)
           );
           m.rotation.y = -Math.PI / 2;
           m.position.set(fX + 0.005, y - 0.02, sgn * (p.W / 2 - 0.32 - i * 0.18));
@@ -591,7 +630,7 @@ function buildHeadlights(style, p) {
       for (const sgn of [-1, 1]) {
         const m = new THREE.Mesh(
           new THREE.BoxGeometry(0.05, 0.06, 0.52),
-          emissiveMat(0xfff5d0, 1.2)
+          emissiveMat(0xfff5d0, 0.55)
         );
         m.position.set(fX, y - 0.02, sgn * (p.W / 2 - 0.40));
         if (style === "slant-led") m.rotation.x = 0.18;
@@ -611,28 +650,28 @@ export function buildCar(spec) {
   const p = { ...BODY_PROFILES[profileKey] };
 
   // ---- main body ----
+  // Larger bevel + width taper give a smooth, organic car shape rather
+  // than the rectangular loaf you get from a plain extrusion.
   const bodyShape = buildBodyShape(p);
-  const bodyGeo = extrudeBody(bodyShape, p.W - 0.04, 0.05);
+  const bodyGeo = extrudeBody(bodyShape, p.W - 0.04, 0.11, 6);
+  applyWidthTaper(bodyGeo, 0.80, 0.55);
+  applyRoofCrown(bodyGeo, p.floorY, 0.025);
   const body = new THREE.Mesh(bodyGeo, paintMat(spec.color));
   body.castShadow = true;
   body.receiveShadow = true;
   car.add(body);
 
   // ---- greenhouse / glass canopy ----
+  // Greenhouse tapers more aggressively to give a coupé-like roofline.
   const greenShape = buildGreenhouseShape(p);
-  const greenGeo = extrudeBody(greenShape, p.W * 0.86, 0.02);
+  const greenGeo = extrudeBody(greenShape, p.W * 0.84, 0.05, 4);
+  applyWidthTaper(greenGeo, 0.66, 0.7);
   const green = new THREE.Mesh(greenGeo, glassMat());
   car.add(green);
 
-  // belt-line trim
-  for (const sgn of [-1, 1]) {
-    const trim = new THREE.Mesh(
-      new THREE.BoxGeometry(p.L * 0.85, 0.025, 0.02),
-      chromeMat(spec.accent || 0xc6cdd6)
-    );
-    trim.position.set(0, p.beltY - 0.02, sgn * (p.W / 2 - 0.01));
-    car.add(trim);
-  }
+  // (belt-line chrome trim intentionally omitted — the tapered body
+  // narrows at the bumpers so a straight trim would float outside the
+  // bodywork. Brand identity is conveyed by the grille/wheels/lights.)
 
   // ---- brand-specific grille ----
   car.add(buildGrille(spec.grille || "none", p, spec.accent || 0xc6cdd6));
@@ -647,10 +686,10 @@ export function buildCar(spec) {
   // ---- taillights ----
   for (const sgn of [-1, 1]) {
     const tail = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 0.10, 0.6),
+      new THREE.BoxGeometry(0.04, 0.09, 0.55),
       new THREE.MeshStandardMaterial({
-        color: 0x4a0606, emissive: 0xff1010,
-        emissiveIntensity: 0.8, metalness: 0.3, roughness: 0.4,
+        color: 0x3a0606, emissive: 0xff1010,
+        emissiveIntensity: 0.35, metalness: 0.3, roughness: 0.4,
       })
     );
     tail.position.set(-p.L / 2 + 0.01, p.beltY - 0.10, sgn * (p.W / 2 - 0.45));
@@ -658,19 +697,21 @@ export function buildCar(spec) {
     tail.userData.taillight = true;
   }
 
-  // ---- side mirrors ----
+  // ---- side mirrors (rounded, organic) ----
   for (const sgn of [-1, 1]) {
     const mirror = new THREE.Mesh(
-      new THREE.BoxGeometry(0.18, 0.10, 0.10),
+      new THREE.SphereGeometry(0.085, 14, 10),
       paintMat(spec.color)
     );
-    mirror.position.set(p.cowlX - 0.05, p.beltY + 0.02, sgn * (p.W / 2 + 0.04));
+    mirror.scale.set(1.2, 0.75, 0.6);
+    mirror.position.set(p.cowlX - 0.05, p.beltY + 0.04, sgn * (p.W / 2 + 0.05));
     car.add(mirror);
     const stem = new THREE.Mesh(
-      new THREE.BoxGeometry(0.04, 0.04, 0.06),
+      new THREE.CylinderGeometry(0.02, 0.02, 0.10, 8),
       plasticMat(0x101216)
     );
-    stem.position.set(p.cowlX - 0.05, p.beltY - 0.02, sgn * (p.W / 2 - 0.01));
+    stem.rotation.z = Math.PI / 2;
+    stem.position.set(p.cowlX - 0.05, p.beltY - 0.01, sgn * (p.W / 2 - 0.0));
     car.add(stem);
   }
 
@@ -739,10 +780,12 @@ export function buildCar(spec) {
 
   // ---- wheels ----
   const wRad = p.wheelR;
-  const wW = 0.32;
+  const wW = 0.30;
   const wheelX = p.L / 2 - p.frontOverhang;
   const wheelXr = wheelX - p.wheelbase;
-  const wheelZ = p.W / 2 - 0.05;
+  // Pushed slightly outboard so wheels poke out clearly past the
+  // tapered body edge.
+  const wheelZ = p.W / 2 - 0.01;
   const positions = [
     [wheelX,  wheelZ], [wheelX, -wheelZ],
     [wheelXr, wheelZ], [wheelXr, -wheelZ],
@@ -755,13 +798,13 @@ export function buildCar(spec) {
     car.userData.wheels.push(w);
   }
 
-  // wheel arches
+  // wheel arches: slim body-color trim arc, recessed slightly inboard
   for (const [x, z] of positions) {
     const arch = new THREE.Mesh(
-      new THREE.TorusGeometry(wRad + 0.04, 0.045, 8, 24, Math.PI),
-      plasticMat(0x05070a)
+      new THREE.TorusGeometry(wRad + 0.03, 0.025, 8, 24, Math.PI),
+      plasticMat(0x040608)
     );
-    arch.position.set(x, wRad, z);
+    arch.position.set(x, wRad, z * 0.94);
     car.add(arch);
   }
 
