@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hyper Garage 3D — معرض السيارات الافتراضي</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Loading overlay (animated via inline JS so it always responds even if the module fails) -->
+  <div id="loader">
+    <div class="loader-inner">
+      <div class="logo">HYPER<span>GARAGE</span> 3D</div>
+      <div class="bar"><div class="fill"></div></div>
+      <div class="hint" id="loaderHint">جاري تحميل المعرض ثلاثي الأبعاد…</div>
+      <div id="loaderError" class="hint" style="display:none;color:#ff7a7a;margin-top:14px"></div>
+      <button id="retryBtn" style="display:none;margin-top:10px;padding:8px 16px;background:#27e0ff;color:#001018;border:0;border-radius:8px;font-weight:700;cursor:pointer">إعادة المحاولة</button>
+    </div>
+  </div>
+
+  <script>
+    // Self-running loader so the bar always animates regardless of whether
+    // js/main.js loads / executes successfully.
+    (function () {
+      var fill = document.querySelector('#loader .fill');
+      var hint = document.getElementById('loaderHint');
+      var errEl = document.getElementById('loaderError');
+      var retry = document.getElementById('retryBtn');
+      var progress = 0;
+      var moduleReady = false;
+      var moduleError = null;
+      var startTs = Date.now();
+      retry.addEventListener('click', function () { location.reload(); });
+
+      // Tick the loader bar steadily up to ~95% then wait for the module.
+      var tick = setInterval(function () {
+        var cap = moduleReady ? 100 : 92;
+        progress = Math.min(cap, progress + 4 + Math.random() * 6);
+        fill.style.width = progress + '%';
+        if (moduleReady && progress >= 99.5) {
+          clearInterval(tick);
+          setTimeout(function () {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('start').classList.remove('hidden');
+          }, 200);
+          return;
+        }
+        // Slow loading hint
+        if (!moduleReady && Date.now() - startTs > 6000) {
+          hint.textContent = 'جاري تحميل مكتبات Three.js… (قد يأخذ بضع ثوانٍ)';
+        }
+        if (!moduleReady && Date.now() - startTs > 18000 && !moduleError) {
+          hint.textContent = 'التحميل يستغرق وقتاً أطول من المعتاد…';
+        }
+      }, 90);
+
+      window.addEventListener('app-ready', function () { moduleReady = true; });
+      window.addEventListener('app-error', function (ev) {
+        moduleError = ev.detail || 'unknown';
+        errEl.style.display = 'block';
+        errEl.textContent = '⚠ تعذّر تشغيل المشهد ثلاثي الأبعاد: ' + moduleError +
+          '. تأكد أن المتصفح يدعم WebGL (chrome://gpu) وأن لديك اتصال بالإنترنت.';
+        retry.style.display = 'inline-block';
+      });
+
+      // Final timeout: if main.js never reports back after 25s, show error.
+      setTimeout(function () {
+        if (!moduleReady && !moduleError) {
+          window.dispatchEvent(new CustomEvent('app-error', {
+            detail: 'لم تُحمَّل وحدة الجافاسكربت (تحقق من اتصال الإنترنت)'
+          }));
+        }
+      }, 25000);
+    })();
+  </script>
+
+  <!-- Start overlay (required for AudioContext to work) -->
+  <div id="start" class="hidden">
+    <div class="start-card">
+      <div class="logo">HYPER<span>GARAGE</span> 3D</div>
+      <p class="tagline">معرض سيارات ثلاثي الأبعاد تفاعلي مع محرك صوتي حقيقي</p>
+      <ul class="howto">
+        <li><kbd>الفأرة</kbd> — اختيار السيارة وتدوير الكاميرا</li>
+        <li><kbd>W</kbd> / <kbd>↑</kbd> — تسريع (Accelerate)</li>
+        <li><kbd>S</kbd> / <kbd>↓</kbd> — مكابح (Brake)</li>
+        <li><kbd>Shift</kbd> — توربو (Turbo Boost)</li>
+        <li><kbd>H</kbd> — بوق السيارة (Horn)</li>
+        <li><kbd>L</kbd> — أضواء (Headlights)</li>
+        <li><kbd>C</kbd> — تغيير زاوية الكاميرا</li>
+        <li>🎵 <b>اسحب MP3/WAV</b> لصوت محرك حقيقي على الموقع — يُشغَّل على السيارة الحالية وتستجيب وتيرته للـ RPM</li>
+        <li>🚗 <b>اسحب GLB/GLTF</b> لموديل ثلاثي أبعاد حقيقي — يحلّ محلّ السيارة الحالية فوراً</li>
+      </ul>
+      <button id="startBtn">دخول المعرض</button>
+      <div class="footnote">
+        كل السيارات في المعرض موديلات <b>فوتوريالستيك حقيقية</b> صنعها فنّانون 3D محترفون: BMW M3 E30 (Martin Trafas)، Porsche 911 Carrera 4S (Lionsharp Studios)، Lamborghini Countach (Lexyc16)، Ferrari 458 (Three.js)، CarConcept (Khronos). كلها مرخّصة بـ CC-BY أو MIT — راجع <a target="_blank" href="models/CREDITS.md">models/CREDITS.md</a> للإسناد. لإضافة سيارة من اختيارك مجّاناً اسحب ملف <b>.glb</b> من <a target="_blank" href="https://sketchfab.com/3d-models?features=downloadable&licenses=b9ddc40b93e34cdca1fc152f39b9f375&q=car">Sketchfab CC-BY</a>، ولصوت محرّك حقيقي اسحب <b>MP3/WAV</b>.
+      </div>
+    </div>
+  </div>
+
+  <!-- The 3D canvas -->
+  <canvas id="scene"></canvas>
+
+  <!-- Top bar -->
+  <header id="topbar">
+    <div class="brand">HYPER<span>GARAGE</span></div>
+    <div class="now-driving">
+      <span class="label">السيارة الحالية</span>
+      <span id="currentCar">—</span>
+    </div>
+    <div class="hint-keys">
+      <span><kbd>W</kbd> تسريع</span>
+      <span><kbd>S</kbd> مكابح</span>
+      <span><kbd>Shift</kbd> توربو</span>
+      <span><kbd>H</kbd> بوق</span>
+    </div>
+  </header>
+
+  <!-- HUD (gauges) -->
+  <section id="hud">
+    <div class="gauge" id="rpmGauge">
+      <svg viewBox="0 0 200 200">
+        <defs>
+          <linearGradient id="rpmGrad" x1="0" x2="1">
+            <stop offset="0" stop-color="#27e0ff" />
+            <stop offset="0.6" stop-color="#ffd84d" />
+            <stop offset="1" stop-color="#ff3b3b" />
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="86" class="ring-bg" />
+        <circle cx="100" cy="100" r="86" class="ring-fg" id="rpmRing"
+                stroke-dasharray="540" stroke-dashoffset="540" />
+        <text x="100" y="92" class="big" id="rpmText">0</text>
+        <text x="100" y="118" class="small">RPM × 1000</text>
+      </svg>
+    </div>
+    <div class="gauge" id="speedGauge">
+      <svg viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="86" class="ring-bg" />
+        <circle cx="100" cy="100" r="86" class="ring-fg ring-speed" id="speedRing"
+                stroke-dasharray="540" stroke-dashoffset="540" />
+        <text x="100" y="92" class="big" id="speedText">0</text>
+        <text x="100" y="118" class="small">KM / H</text>
+      </svg>
+    </div>
+    <div class="status">
+      <div class="row"><span class="lab">الحالة</span><span id="statusState">IDLE</span></div>
+      <div class="row"><span class="lab">الناقل</span><span id="statusGear">N</span></div>
+      <div class="row"><span class="lab">التوربو</span>
+        <div class="boostbar"><div id="boostFill"></div></div>
+      </div>
+      <div class="row"><span class="lab">المحرك</span><span id="statusEngine">—</span></div>
+    </div>
+  </section>
+
+  <!-- Car selector -->
+  <aside id="garage">
+    <div class="garage-title">اختر سيارتك</div>
+    <div id="carList"></div>
+    <div class="garage-foot">
+      <button id="prevCar" class="pill">‹ السابقة</button>
+      <button id="nextCar" class="pill">التالية ›</button>
+    </div>
+  </aside>
+
+  <!-- Info panel for selected car -->
+  <section id="info">
+    <div id="infoName">—</div>
+    <div id="infoTagline">—</div>
+    <div class="specs">
+      <div><span class="lab">المحرك</span><span id="infoEngine">—</span></div>
+      <div><span class="lab">القوة</span><span id="infoPower">—</span></div>
+      <div><span class="lab">السرعة القصوى</span><span id="infoTop">—</span></div>
+      <div><span class="lab">0–100 كم/س</span><span id="infoZero">—</span></div>
+    </div>
+  </section>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
