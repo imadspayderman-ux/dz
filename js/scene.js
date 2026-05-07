@@ -230,7 +230,6 @@ export class Showroom {
           if (o.isMesh) {
             o.castShadow = true;
             o.receiveShadow = true;
-            // ensure the material reacts to the showroom environment map
             if (o.material && o.material.envMapIntensity === undefined) {
               o.material.envMapIntensity = 1.0;
             }
@@ -240,6 +239,21 @@ export class Showroom {
             wheels.push(o);
           }
         });
+
+        // For each wheel, detect which local axis is the axle (the shortest
+        // dimension of its mesh bounding box). Defaults to X if unknown.
+        function detectAxleAxis(node) {
+          let mesh = null;
+          node.traverse(o => { if (o.isMesh && !mesh) mesh = o; });
+          if (!mesh) return "x";
+          if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+          const s = new THREE.Vector3();
+          mesh.geometry.boundingBox.getSize(s);
+          let axis = "x", min = s.x;
+          if (s.y < min) { axis = "y"; min = s.y; }
+          if (s.z < min) axis = "z";
+          return axis;
+        }
 
         // 4) Replace the procedural visual child with the real model.
         if (car.userData.visualChild) {
@@ -252,10 +266,11 @@ export class Showroom {
         car.userData.glb = root;
 
         // wrap each wheel so we have a spinner-like API matching the
-        // procedural cars (drive() calls w.userData.spinner.rotation.x = …)
+        // procedural cars. Also remember the axle axis so we rotate around
+        // the correct local axis (not all GLB models use X as their axle).
         car.userData.wheels = wheels.map((w) => {
-          const fakeWheel = { userData: { spinner: w } };
-          return fakeWheel;
+          const axis = detectAxleAxis(w);
+          return { userData: { spinner: w, axleAxis: axis } };
         });
         // GLB models don't expose easy headlight/taillight handles, so
         // we leave those arrays empty (lights still display via the model).
@@ -336,7 +351,9 @@ export class Showroom {
     const angVel = (rpm / 8000) * 22.0;
     this._wheelSpinAngle += angVel * dt;
     car.userData.wheels.forEach(w => {
-      if (w.userData.spinner) w.userData.spinner.rotation.x = this._wheelSpinAngle;
+      if (!w.userData.spinner) return;
+      const axis = w.userData.axleAxis || "x";
+      w.userData.spinner.rotation[axis] = this._wheelSpinAngle;
     });
     const tilt = throttle * 0.02 - brake * 0.04;
     car.rotation.z = THREE.MathUtils.lerp(car.rotation.z || 0, tilt, 0.12);
