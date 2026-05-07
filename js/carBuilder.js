@@ -689,14 +689,18 @@ export function buildCar(spec) {
   }
 
   // ---- splitter & diffuser ----
-  car.add(Object.assign(new THREE.Mesh(
+  const splitter = new THREE.Mesh(
     new THREE.BoxGeometry(0.32, 0.04, p.W * 0.92),
     plasticMat(0x06070a)
-  ), { position: new THREE.Vector3(p.L / 2 - 0.16, p.floorY - 0.02, 0) }));
-  car.add(Object.assign(new THREE.Mesh(
+  );
+  splitter.position.set(p.L / 2 - 0.16, p.floorY - 0.02, 0);
+  car.add(splitter);
+  const diffuser = new THREE.Mesh(
     new THREE.BoxGeometry(0.36, 0.06, p.W * 0.85),
     plasticMat(0x06070a)
-  ), { position: new THREE.Vector3(-p.L / 2 + 0.18, p.floorY - 0.01, 0) }));
+  );
+  diffuser.position.set(-p.L / 2 + 0.18, p.floorY - 0.01, 0);
+  car.add(diffuser);
 
   // ---- spoiler ----
   if (spec.spoiler === "lip") {
