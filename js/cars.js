@@ -169,28 +169,31 @@ export const CARS = [
   },
 
   // ─── Ferrari 488 GTB / Pista flat-plane V8 twin-turbo ─────────────────
+  // This entry uses a real artist-made 3D model from the Three.js examples
+  // (mit-licensed) so you see a photoreal car body in the showroom.
   {
     id: "maranello-v8",
     name: "Maranello Berlinetta",
-    inspiredBy: "Ferrari 488",
-    tagline: "Flat-plane V8 twin-turbo, race-bred banshee",
+    inspiredBy: "Ferrari 458 (real 3D model)",
+    tagline: "موديل ثلاثي الأبعاد حقيقي مرخّص — Ferrari 458 by Three.js",
+    modelUrl: "https://threejs.org/examples/models/gltf/ferrari.glb",
     body: "midEngine",
     color: 0xd62024, accent: 0xfff200, rim: 0x111111,
     grille: "ferrari-cross",
     wheels: "ferrari-twin5",
     headlights: "slant-led",
-    power: "710 HP", topSpeed: "340 km/h", zero100: "2.85s",
+    power: "562 HP", topSpeed: "325 km/h", zero100: "3.0s",
     spoiler: "active",
     engine: {
-      label: "V8 3.9L Bi-Turbo Flat-plane",
-      type: "V8 FP TT", cylinders: 4,
-      idleRpm: 980, redRpm: 8000,
+      label: "V8 4.5L NA Flat-plane",
+      type: "V8 FP", cylinders: 4,
+      idleRpm: 980, redRpm: 9000,
       fundHz: 88, harmonics: [
         {mult: 1, gain: 0.55}, {mult: 2, gain: 0.95},
         {mult: 3, gain: 0.65}, {mult: 4, gain: 0.55}, {mult: 5, gain: 0.30}, {mult: 7, gain: 0.18},
       ],
       crackle: 0.35, grit: 0.20, rumble: 0.30,
-      turboWhistle: 0.65, blower: 0.0,
+      turboWhistle: 0.0, blower: 0.0,
       hornFreqs: [440, 554],
     },
   },
@@ -303,12 +306,13 @@ export const CARS = [
     },
   },
 
-  // ─── Bugatti Chiron W16 Quad-turbo ─────────────────────────────────────
+  // ─── Bugatti Chiron W16 Quad-turbo (Khronos CarConcept GLB hero model) ─
   {
     id: "molsheim-w16",
-    name: "Molsheim W16 Quad-Turbo",
-    inspiredBy: "Bugatti Chiron",
-    tagline: "Quad-turbo W16 hypercar, engineering opera",
+    name: "Concept W16 Quad-Turbo",
+    inspiredBy: "Bugatti Chiron-style — real 3D concept car (Khronos CC-BY)",
+    tagline: "موديل ثلاثي الأبعاد حقيقي — Khronos CarConcept",
+    modelUrl: "https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/CarConcept/glTF-Binary/CarConcept.glb",
     body: "hyper",
     color: 0x0f1830, accent: 0x4a90e2, rim: 0x4a90e2,
     grille: "bugatti-horseshoe",

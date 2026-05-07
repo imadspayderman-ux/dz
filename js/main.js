@@ -138,17 +138,39 @@ document.head.appendChild(dropStyle);
 window.addEventListener("drop", async (e) => {
   e.preventDefault();
   const file = e.dataTransfer?.files?.[0];
-  if (!file || !file.type.startsWith("audio/")) return;
-  if (!audio.ctx) await audio.init();
-  try {
-    const buf = await file.arrayBuffer();
-    const decoded = await audio.ctx.decodeAudioData(buf);
-    audio.setSampleBuffer(decoded);
-    statusEngine.textContent = "REAL: " + file.name.slice(0, 18);
-  } catch (err) {
-    console.warn("decode failed", err);
-    alert("تعذّر فكّ ترميز الملف الصوتي");
+  if (!file) return;
+  const name = file.name.toLowerCase();
+
+  // 3D model drop: .glb / .gltf
+  if (name.endsWith(".glb") || name.endsWith(".gltf") || file.type.includes("gltf")) {
+    const url = URL.createObjectURL(file);
+    try {
+      await showroom.loadUserGLBOnActive(url);
+      currentCarEl.textContent = "REAL: " + file.name.slice(0, 22);
+    } catch (err) {
+      console.warn("GLB load failed", err);
+      alert("تعذّر تحميل الموديل ثلاثي الأبعاد: " + (err && err.message || err));
+    }
+    return;
   }
+
+  // Audio drop: any audio/* file
+  if (file.type.startsWith("audio/") ||
+      [".mp3",".wav",".ogg",".m4a",".flac"].some(x => name.endsWith(x))) {
+    if (!audio.ctx) await audio.init();
+    try {
+      const buf = await file.arrayBuffer();
+      const decoded = await audio.ctx.decodeAudioData(buf);
+      audio.setSampleBuffer(decoded);
+      statusEngine.textContent = "REAL: " + file.name.slice(0, 18);
+    } catch (err) {
+      console.warn("decode failed", err);
+      alert("تعذّر فكّ ترميز الملف الصوتي");
+    }
+    return;
+  }
+
+  alert("نوع الملف غير مدعوم — استخدم MP3/WAV/OGG للصوت أو GLB/GLTF للموديل");
 });
 
 // ---------- Keyboard controls ----------

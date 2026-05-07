@@ -5,7 +5,21 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { buildCar } from "./carBuilder.js";
+
+// Shared GLTF + DRACO loaders so we can load real photo-quality car models
+// (artist-made GLB files) instead of just the procedural ones.
+let _gltfLoader = null;
+function getGLTFLoader() {
+  if (_gltfLoader) return _gltfLoader;
+  _gltfLoader = new GLTFLoader();
+  const draco = new DRACOLoader();
+  draco.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
+  _gltfLoader.setDRACOLoader(draco);
+  return _gltfLoader;
+}
 
 export class Showroom {
   constructor(canvas) {
@@ -142,7 +156,19 @@ export class Showroom {
     const N = carSpecs.length;
     this._radius = 9;
     for (let i = 0; i < N; i++) {
-      const car = buildCar(carSpecs[i]);
+      // Wrap the visual mesh in a stable parent group so we can swap in a
+      // GLB model later without losing position/rotation/state.
+      const car = new THREE.Group();
+      const proc = buildCar(carSpecs[i]);
+      car.add(proc);
+      car.userData.spec = carSpecs[i];
+      car.userData.profile = proc.userData.profile;
+      car.userData.bodyLen = proc.userData.bodyLen;
+      car.userData.wheels = proc.userData.wheels;
+      car.userData.headlights = proc.userData.headlights;
+      car.userData.taillights = proc.userData.taillights;
+      car.userData.visualChild = proc;
+
       const a = (i / N) * Math.PI * 2;
       car.userData.parkAngle = a;
       car.userData.parkPos = new THREE.Vector3(Math.cos(a) * this._radius, 0, Math.sin(a) * this._radius);
@@ -153,6 +179,98 @@ export class Showroom {
       this.scene.add(car);
     }
     this.setActive(0, true);
+
+    // Asynchronously upgrade cars that have a real GLB model URL.
+    for (let i = 0; i < N; i++) {
+      if (carSpecs[i].modelUrl) {
+        this.loadGLBOnto(i, carSpecs[i].modelUrl).catch(err => {
+          console.warn("[GLB load failed]", carSpecs[i].name, err);
+        });
+      }
+    }
+  }
+
+  // Load a GLB/GLTF file and use it as the visual mesh of car index `idx`.
+  // The model is normalised: centred, scaled to a target length, and oriented
+  // with its longest axis along +X (matching our procedural cars). Wheels are
+  // detected by node name and split off so they spin separately from the body.
+  loadGLBOnto(idx, url, opts = {}) {
+    const car = this.cars[idx];
+    if (!car) return Promise.reject(new Error("no car at index " + idx));
+    const loader = getGLTFLoader();
+    return new Promise((resolve, reject) => {
+      loader.load(url, (gltf) => {
+        const root = gltf.scene || gltf.scenes?.[0];
+        if (!root) return reject(new Error("empty GLB"));
+
+        // 1) Determine longest-axis orientation. Some GLBs are +Z forward,
+        //    we want +X forward.
+        const tmpBox = new THREE.Box3().setFromObject(root);
+        const tmpSize = tmpBox.getSize(new THREE.Vector3());
+        if (tmpSize.z > tmpSize.x * 1.2) {
+          root.rotation.y = Math.PI / 2;
+        }
+
+        // 2) Re-measure after rotation, then centre + scale-to-fit.
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(root);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const targetLen = opts.targetLength || 4.6;
+        const scale = targetLen / Math.max(size.x, 0.0001);
+
+        const wrap = new THREE.Group();
+        root.position.set(-center.x, -box.min.y, -center.z);
+        wrap.add(root);
+        wrap.scale.setScalar(scale);
+
+        // 3) Enable shadows + collect wheels by name.
+        const wheels = [];
+        root.traverse((o) => {
+          if (o.isMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+            // ensure the material reacts to the showroom environment map
+            if (o.material && o.material.envMapIntensity === undefined) {
+              o.material.envMapIntensity = 1.0;
+            }
+          }
+          const n = (o.name || "").toLowerCase();
+          if (/wheel|rotor|tire|tyre/.test(n) && o !== root) {
+            wheels.push(o);
+          }
+        });
+
+        // 4) Replace the procedural visual child with the real model.
+        if (car.userData.visualChild) {
+          car.remove(car.userData.visualChild);
+          car.userData.visualChild = null;
+        }
+        car.add(wrap);
+        car.userData.visualChild = wrap;
+        car.userData.realModel = true;
+        car.userData.glb = root;
+
+        // wrap each wheel so we have a spinner-like API matching the
+        // procedural cars (drive() calls w.userData.spinner.rotation.x = …)
+        car.userData.wheels = wheels.map((w) => {
+          const fakeWheel = { userData: { spinner: w } };
+          return fakeWheel;
+        });
+        // GLB models don't expose easy headlight/taillight handles, so
+        // we leave those arrays empty (lights still display via the model).
+        car.userData.headlights = [];
+        car.userData.taillights = [];
+
+        resolve(root);
+      }, undefined, (err) => reject(err));
+    });
+  }
+
+  // Public helper used by drag-and-drop in main.js: load a user-provided
+  // .glb / .gltf file (passed as a Blob URL) onto the currently active car.
+  loadUserGLBOnActive(url) {
+    return this.loadGLBOnto(this.activeIndex, url);
   }
 
   setActive(index, immediate = false) {
