@@ -8,21 +8,79 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
       }
     }
   </script>
 </head>
 <body>
-  <!-- Loading overlay -->
+  <!-- Loading overlay (animated via inline JS so it always responds even if the module fails) -->
   <div id="loader">
     <div class="loader-inner">
       <div class="logo">HYPER<span>GARAGE</span> 3D</div>
       <div class="bar"><div class="fill"></div></div>
-      <div class="hint">جاري تحميل المعرض ثلاثي الأبعاد…</div>
+      <div class="hint" id="loaderHint">جاري تحميل المعرض ثلاثي الأبعاد…</div>
+      <div id="loaderError" class="hint" style="display:none;color:#ff7a7a;margin-top:14px"></div>
+      <button id="retryBtn" style="display:none;margin-top:10px;padding:8px 16px;background:#27e0ff;color:#001018;border:0;border-radius:8px;font-weight:700;cursor:pointer">إعادة المحاولة</button>
     </div>
   </div>
+
+  <script>
+    // Self-running loader so the bar always animates regardless of whether
+    // js/main.js loads / executes successfully.
+    (function () {
+      var fill = document.querySelector('#loader .fill');
+      var hint = document.getElementById('loaderHint');
+      var errEl = document.getElementById('loaderError');
+      var retry = document.getElementById('retryBtn');
+      var progress = 0;
+      var moduleReady = false;
+      var moduleError = null;
+      var startTs = Date.now();
+      retry.addEventListener('click', function () { location.reload(); });
+
+      // Tick the loader bar steadily up to ~95% then wait for the module.
+      var tick = setInterval(function () {
+        var cap = moduleReady ? 100 : 92;
+        progress = Math.min(cap, progress + 4 + Math.random() * 6);
+        fill.style.width = progress + '%';
+        if (moduleReady && progress >= 99.5) {
+          clearInterval(tick);
+          setTimeout(function () {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('start').classList.remove('hidden');
+          }, 200);
+          return;
+        }
+        // Slow loading hint
+        if (!moduleReady && Date.now() - startTs > 6000) {
+          hint.textContent = 'جاري تحميل مكتبات Three.js… (قد يأخذ بضع ثوانٍ)';
+        }
+        if (!moduleReady && Date.now() - startTs > 18000 && !moduleError) {
+          hint.textContent = 'التحميل يستغرق وقتاً أطول من المعتاد…';
+        }
+      }, 90);
+
+      window.addEventListener('app-ready', function () { moduleReady = true; });
+      window.addEventListener('app-error', function (ev) {
+        moduleError = ev.detail || 'unknown';
+        errEl.style.display = 'block';
+        errEl.textContent = '⚠ تعذّر تشغيل المشهد ثلاثي الأبعاد: ' + moduleError +
+          '. تأكد أن المتصفح يدعم WebGL (chrome://gpu) وأن لديك اتصال بالإنترنت.';
+        retry.style.display = 'inline-block';
+      });
+
+      // Final timeout: if main.js never reports back after 25s, show error.
+      setTimeout(function () {
+        if (!moduleReady && !moduleError) {
+          window.dispatchEvent(new CustomEvent('app-error', {
+            detail: 'لم تُحمَّل وحدة الجافاسكربت (تحقق من اتصال الإنترنت)'
+          }));
+        }
+      }, 25000);
+    })();
+  </script>
 
   <!-- Start overlay (required for AudioContext to work) -->
   <div id="start" class="hidden">

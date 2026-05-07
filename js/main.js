@@ -1,12 +1,15 @@
-import { Showroom } from "./scene.js";
-import { CARS } from "./cars.js";
-import { EngineAudio } from "./audio.js";
+// Wrap the entire bootstrap so any thrown error is reported to the inline
+// loader (which then surfaces it to the user with a retry button).
+(async function bootstrap() {
+try {
+
+const { Showroom } = await import("./scene.js");
+const { CARS } = await import("./cars.js");
+const { EngineAudio } = await import("./audio.js");
 
 // ---------- DOM helpers ----------
 const $ = (s) => document.querySelector(s);
 
-const loader = $("#loader");
-const loaderFill = loader.querySelector(".fill");
 const startScreen = $("#start");
 const startBtn = $("#startBtn");
 const carListEl = $("#carList");
@@ -83,19 +86,8 @@ $("#nextCar").addEventListener("click", () => {
   selectCar((showroom.activeIndex + 1) % CARS.length);
 });
 
-// ---------- Loader bar (cosmetic) ----------
-let loaderProgress = 0;
-const loaderTick = setInterval(() => {
-  loaderProgress = Math.min(100, loaderProgress + 6 + Math.random() * 8);
-  loaderFill.style.width = loaderProgress + "%";
-  if (loaderProgress >= 100) {
-    clearInterval(loaderTick);
-    setTimeout(() => {
-      loader.classList.add("hidden");
-      startScreen.classList.remove("hidden");
-    }, 250);
-  }
-}, 80);
+// Notify the inline loader that we finished bootstrapping
+window.dispatchEvent(new CustomEvent("app-ready"));
 
 // ---------- Start (required for AudioContext) ----------
 startBtn.addEventListener("click", async () => {
@@ -251,3 +243,11 @@ function frame() {
   requestAnimationFrame(frame);
 }
 frame();
+
+} catch (err) {
+  console.error("[bootstrap] failed:", err);
+  window.dispatchEvent(new CustomEvent("app-error", {
+    detail: (err && err.message) ? err.message : String(err)
+  }));
+}
+})();

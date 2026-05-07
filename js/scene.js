@@ -17,10 +17,24 @@ export class Showroom {
     this.scene.background = new THREE.Color(0x05070d);
     this.scene.fog = new THREE.Fog(0x05070d, 18, 50);
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas, antialias: true, alpha: false, powerPreference: "high-performance"
-    });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    // Try the high-quality renderer first; fall back progressively if the
+    // GPU / driver refuses (some integrated GPUs don't honour antialias).
+    let renderer = null;
+    const opts = [
+      { canvas, antialias: true,  alpha: false, powerPreference: "high-performance" },
+      { canvas, antialias: false, alpha: false, powerPreference: "high-performance" },
+      { canvas, antialias: false, alpha: false },
+    ];
+    let lastErr = null;
+    for (const o of opts) {
+      try { renderer = new THREE.WebGLRenderer(o); break; }
+      catch (e) { lastErr = e; }
+    }
+    if (!renderer) {
+      throw new Error("WebGL غير مدعوم في هذا المتصفح/الجهاز. (" + (lastErr && lastErr.message || "") + ")");
+    }
+    this.renderer = renderer;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
